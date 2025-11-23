@@ -1101,6 +1101,14 @@
         }
         window.updatingPreview = true;
         
+        // Auto-clear the flag after a reasonable timeout (2 seconds) as safety
+        setTimeout(() => {
+          if (window.updatingPreview) {
+            console.log('⚠️ [PREVIEW] Update flag stuck, clearing it');
+            window.updatingPreview = false;
+          }
+        }, 2000);
+        
         // Build gallery view with thumbnails
         previewList.innerHTML = ''; // Clear first
         console.log('🧹 [GALLERY] Cleared preview list, starting to add', imageFiles.length, 'items');
