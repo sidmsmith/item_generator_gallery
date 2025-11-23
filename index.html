@@ -815,17 +815,8 @@
       return config;
       }
 
-    function initUI() {
-      let config = loadConfig();
-      config = normalizePathDefaults(config);
-
-      for (const key in config) {
-        const el = document.getElementById(key);
-        if (el) el.value = config[key];
-      }
-
-      // Function to filter image files (shared by preview and upload)
-      function filterImageFiles(files, includeSubfolders) {
+    // Function to filter image files (shared by preview and upload) - defined at global scope
+    function filterImageFiles(files, includeSubfolders) {
         console.log('🔍 [FILTER] Starting filterImageFiles');
         console.log('🔍 [FILTER] Parameters:', { 
           totalFiles: files ? files.length : 0, 
@@ -934,6 +925,15 @@
         });
         
         return filtered;
+    }
+    
+    function initUI() {
+      let config = loadConfig();
+      config = normalizePathDefaults(config);
+
+      for (const key in config) {
+        const el = document.getElementById(key);
+        if (el) el.value = config[key];
       }
       
       // Function to update image preview
