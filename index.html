@@ -722,6 +722,10 @@
       </div>
       <div id="itemListBody">
         <textarea id="itemListTextarea" class="form-control" rows="8" style="background:#0d1117;color:#fff;border:1px solid #333;"></textarea>
+        <div id="unappliedChangesBadge" style="display: none; margin-top: 0.5rem; padding: 0.25rem 0.5rem; background: rgba(255, 165, 0, 0.2); border: 1px solid #ffa500; border-radius: 4px; color: #ffa500; font-size: 0.85em;">
+          <i class="fas fa-exclamation-triangle" style="margin-right: 0.25rem;"></i>
+          <span id="unappliedChangesCount">0</span> unapplied change(s) - Click "Apply Changes" or they will be auto-applied on Download
+        </div>
       <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem;">
         <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
         <button id="itemListApplyBtn" class="btn btn-primary btn-sm">Apply Changes</button>
@@ -1855,28 +1859,22 @@
         e.target.value = '';
       });
 
+      // Add event listener to textarea to detect changes
+      const itemListTextarea = document.getElementById('itemListTextarea');
+      if (itemListTextarea) {
+        itemListTextarea.addEventListener('input', checkForUnappliedChanges);
+        itemListTextarea.addEventListener('paste', () => {
+          // Delay check to allow paste to complete
+          setTimeout(checkForUnappliedChanges, 10);
+        });
+      }
+
       document.getElementById('itemListApplyBtn').addEventListener('click', () => {
-        const textarea = document.getElementById('itemListTextarea');
-        const textValue = textarea.value.trim();
-        
-        // Check if textarea is empty
-        if (!textValue || textValue.length === 0) {
-          alert('Item list cannot be empty. Please enter at least one item.');
-          return;
+        const result = applyChangesFromTextarea();
+        if (!result.success) {
+          alert(`Invalid item list format: ${result.error}`);
         }
-        
-        // Parse items from textarea
-        const items = textValue.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
-        
-        // Validate format
-        const validation = validateItemListFormat(items);
-        if (!validation.valid) {
-          alert(`Invalid item list format: ${validation.error}`);
-          return;
-        }
-        
-        // Apply if valid
-        setItemList(items, `Applied ${items.length} items from editor`);
+        // Visual indicators are cleared in setItemList -> updateItemListTextarea -> checkForUnappliedChanges
       });
 
       document.getElementById('itemListSaveBtn').addEventListener('click', () => {
@@ -1896,6 +1894,9 @@
       document.getElementById('itemListToggleBtn').addEventListener('click', toggleItemListPanel);
 
       setItemList([], 'No items loaded yet.');
+      
+      // Initialize change detection
+      checkForUnappliedChanges();
     }
 
     async function parseReferenceItemsFile(file) {
@@ -1941,6 +1942,63 @@
       textarea.value = currentItemList.join('\n');
       const status = document.getElementById('itemListStatus');
       status.textContent = message || (currentItemList.length ? `${currentItemList.length} items in list` : 'No items loaded yet.');
+      // Clear unapplied changes visual indicators
+      checkForUnappliedChanges();
+    }
+
+    function checkForUnappliedChanges() {
+      const textarea = document.getElementById('itemListTextarea');
+      const badge = document.getElementById('unappliedChangesBadge');
+      const countSpan = document.getElementById('unappliedChangesCount');
+      
+      if (!textarea || !badge || !countSpan) return;
+      
+      const textareaValue = textarea.value.trim();
+      const currentValue = currentItemList.join('\n');
+      
+      // Check if textarea differs from currentItemList
+      const hasChanges = textareaValue !== currentValue;
+      
+      if (hasChanges) {
+        // Count differences (approximate - count lines)
+        const textareaLines = textareaValue.split(/\r?\n/).filter(line => line.trim().length > 0);
+        const currentLines = currentItemList.length;
+        const changeCount = Math.abs(textareaLines.length - currentLines) || 1;
+        
+        // Show badge
+        badge.style.display = 'block';
+        countSpan.textContent = changeCount;
+        
+        // Apply red/orange color to textarea text
+        textarea.style.color = '#ff6b6b'; // Red color for unapplied changes
+      } else {
+        // Hide badge and restore normal color
+        badge.style.display = 'none';
+        textarea.style.color = '#fff'; // Normal white color
+      }
+    }
+
+    function applyChangesFromTextarea() {
+      const textarea = document.getElementById('itemListTextarea');
+      const textValue = textarea.value.trim();
+      
+      // Check if textarea is empty
+      if (!textValue || textValue.length === 0) {
+        return { success: false, error: 'Item list cannot be empty. Please enter at least one item.' };
+      }
+      
+      // Parse items from textarea
+      const items = textValue.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+      
+      // Validate format
+      const validation = validateItemListFormat(items);
+      if (!validation.valid) {
+        return { success: false, error: validation.error };
+      }
+      
+      // Apply if valid
+      setItemList(items, `Applied ${items.length} items from editor`);
+      return { success: true };
     }
 
     function setItemList(items, statusMessage) {
@@ -2269,6 +2327,22 @@
     }
 
     async function handleDownloadClick() {
+      // Check for unapplied changes in textarea and auto-apply if they exist
+      const textarea = document.getElementById('itemListTextarea');
+      const textareaValue = textarea ? textarea.value.trim() : '';
+      const currentValue = currentItemList.join('\n');
+      const hasUnappliedChanges = textareaValue !== currentValue;
+      
+      if (hasUnappliedChanges) {
+        // Auto-apply changes from textarea
+        const applyResult = applyChangesFromTextarea();
+        if (!applyResult.success) {
+          alert(`Cannot proceed with download: ${applyResult.error}\n\nPlease fix the item list format and try again.`);
+          return;
+        }
+        // Changes have been applied, continue with download
+      }
+
       // First check if Current Item List is empty
       if (currentItemList.length === 0) {
         alert('Item list cannot be empty. Please load or generate items before downloading.');
