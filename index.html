@@ -676,7 +676,7 @@
         <label class="form-label">Existing Item List:</label>
         <div style="flex:1; position: relative;">
         <input type="file" id="items_file" class="form-control" accept=".txt" style="display:none;" />
-          <input type="text" id="existing_list" class="form-control" placeholder="Load or enter a .txt item list path" style="flex:1; padding-right: 200px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; font-family: 'Courier New', monospace; font-size: 0.9em;" />
+          <input type="text" id="existing_list" class="form-control" placeholder="Load or enter a .txt item list path" style="flex:1; padding-right: 200px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; background-color: rgba(255, 0, 0, 0.1); border-color: rgba(255, 0, 0, 0.3);" />
           <span id="existingListStatus" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); color: var(--success); font-size: 0.85em; pointer-events: none; white-space: nowrap;"></span>
         </div>
         <button class="btn btn-secondary btn-sm" id="existingListLoadBtn" type="button">Load</button>
@@ -686,7 +686,7 @@
         <label class="form-label">Reference Items File:</label>
         <div style="flex:1; position: relative;">
           <input type="file" id="item_numbers_csv" class="form-control" accept=".csv,.xls,.xlsx" style="display:none;" />
-          <input type="text" id="reference_items_display" class="form-control" placeholder="Load or enter a CSV/Excel file path" style="padding-right: 200px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; font-family: 'Courier New', monospace; font-size: 0.9em;" readonly />
+          <input type="text" id="reference_items_display" class="form-control" placeholder="Load or enter a CSV/Excel file path" style="padding-right: 200px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; background-color: rgba(255, 0, 0, 0.1); border-color: rgba(255, 0, 0, 0.3);" readonly />
           <span id="itemNumbersStatus" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); color: var(--success); font-size: 0.85em; pointer-events: none; white-space: nowrap;"></span>
       </div>
         <button class="btn btn-secondary btn-sm" id="referenceItemsLoadBtn" type="button" title="CSV/Excel file with item numbers (one per row, first column)">Load</button>
@@ -728,18 +728,10 @@
         <textarea id="itemListTextarea" class="form-control" rows="8" style="background:#0d1117;color:#fff;border:1px solid #333;"></textarea>
         <div id="unappliedChangesBadge" style="display: none; margin-top: 0.5rem; padding: 0.25rem 0.5rem; background: rgba(255, 165, 0, 0.2); border: 1px solid #ffa500; border-radius: 4px; color: #ffa500; font-size: 0.85em;">
           <i class="fas fa-exclamation-triangle" style="margin-right: 0.25rem;"></i>
-          <span id="unappliedChangesCount">0</span> unvalidated change(s) - Click "Validate Items" or they will be auto-validated on Download
+          <span id="unappliedChangesCount">0</span> unvalidated change(s) - Click "Validate List" or they will be auto-validated on Download
         </div>
       <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem;">
-        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-        <button id="itemListApplyBtn" class="btn btn-primary btn-sm">Validate Items</button>
-        <button id="itemListSaveBtn" class="btn btn-outline-light btn-sm">Save List</button>
-        <button id="itemListClearBtn" class="btn btn-outline-danger btn-sm">Clear</button>
-        </div>
-        <div style="display: flex; justify-content: center; width: 100%; margin: 0.5rem 0;">
-          <button id="dlBtn" class="btn btn-success" style="width: 200px;">Download Items</button>
-        </div>
-        <div style="display: flex; flex-direction: column; gap: 0.5rem; width: 100%;">
+        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
           <div style="display: flex; align-items: center; gap: 0.5rem;">
             <input type="checkbox" id="uploadAfterDownload" style="margin: 0; cursor: pointer;">
             <label for="uploadAfterDownload" style="margin: 0; cursor: pointer; color: var(--text); font-size: 0.9em;">Upload to Cloudinary after download</label>
@@ -748,6 +740,14 @@
             <input type="checkbox" id="updateWmAfterDownload" style="margin: 0; cursor: pointer;">
             <label for="updateWmAfterDownload" style="margin: 0; cursor: pointer; color: var(--text); font-size: 0.9em;">Update WM after download</label>
           </div>
+        </div>
+        <div style="display: flex; justify-content: center; width: 100%; margin: 0.5rem 0;">
+          <button id="dlBtn" class="btn btn-success" style="width: 200px;">Download Items</button>
+        </div>
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: flex-end;">
+        <button id="itemListApplyBtn" class="btn btn-primary btn-sm">Validate List</button>
+        <button id="itemListSaveBtn" class="btn btn-outline-light btn-sm">Save List</button>
+        <button id="itemListClearBtn" class="btn btn-outline-danger btn-sm">Clear</button>
         </div>
       </div>
       <div class="status-label" id="itemListStatus"></div>
@@ -768,7 +768,7 @@
         <label class="form-label">Output CSV File:</label>
         <div style="flex:1; position: relative;">
           <input type="file" id="csv_out_file" class="form-control" accept=".csv,.xls,.xlsx" style="display:none;" />
-          <input type="text" id="csv_out" class="form-control" placeholder="Load or enter a CSV/Excel file path" style="flex:1; padding-right: 200px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; font-family: 'Courier New', monospace; font-size: 0.9em;" readonly />
+          <input type="text" id="csv_out" class="form-control" placeholder="Load or enter a CSV/Excel file path" style="flex:1; padding-right: 200px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; background-color: rgba(255, 0, 0, 0.1); border-color: rgba(255, 0, 0, 0.3);" readonly />
           <span id="csvOutStatus" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); color: var(--success); font-size: 0.85em; pointer-events: none; white-space: nowrap;"></span>
         </div>
         <button class="btn btn-secondary btn-sm" id="csvOutLoadBtn" type="button">Load</button>
@@ -1069,35 +1069,8 @@
         if (el) el.value = config[key];
       }
 
-      // Restore Reference Items filename if stored
-      const storedRefFilename = localStorage.getItem('item_gen_reference_items_filename');
-      if (storedRefFilename) {
-        const refDisplay = document.getElementById('reference_items_display');
-        if (refDisplay) {
-          refDisplay.value = storedRefFilename;
-          refDisplay.title = storedRefFilename; // Tooltip shows filename
-        }
-      }
-      
-      // Restore Existing Item List filename if stored
-      const storedExistingFilename = localStorage.getItem('item_gen_existing_list_filename');
-      if (storedExistingFilename) {
-        const existingListInput = document.getElementById('existing_list');
-        if (existingListInput) {
-          existingListInput.value = storedExistingFilename;
-          existingListInput.title = storedExistingFilename; // Tooltip shows filename
-        }
-      }
-      
-      // Restore CSV Output filename if stored
-      const storedCsvOutFilename = localStorage.getItem('item_gen_csv_out_filename');
-      if (storedCsvOutFilename) {
-        const csvOutInput = document.getElementById('csv_out');
-        if (csvOutInput) {
-          csvOutInput.value = storedCsvOutFilename;
-          csvOutInput.title = storedCsvOutFilename; // Tooltip shows filename
-        }
-      }
+      // Don't pre-populate filenames - user must load files each time
+      // Red shading on textboxes indicates files need to be loaded
       
       // Function to update image preview
       function updateImagePreview() {
@@ -1791,6 +1764,9 @@
         }
         csvOutInput.value = displayPath;
         csvOutInput.title = fileName; // Tooltip shows filename on hover
+        // Remove red shading when file is loaded
+        csvOutInput.style.backgroundColor = '';
+        csvOutInput.style.borderColor = '';
         setCsvOutStatus(`${validation.rowCount} rows loaded`);
         
         // Parse CSV data from file
@@ -1861,6 +1837,9 @@
           }
           referenceItemsDisplay.value = displayPath;
           referenceItemsDisplay.title = fileName; // Tooltip shows filename on hover
+          // Remove red shading when file is loaded
+          referenceItemsDisplay.style.backgroundColor = '';
+          referenceItemsDisplay.style.borderColor = '';
         }
         referenceItems = await parseReferenceItemsFile(file);
         setItemNumbersStatus(
@@ -1921,12 +1900,12 @@
         
         existingListInput.value = displayPath;
         existingListInput.title = fileName; // Tooltip shows filename on hover
+        // Remove red shading when file is loaded
+        existingListInput.style.backgroundColor = '';
+        existingListInput.style.borderColor = '';
         // Auto-apply when loading from file - no warnings, display in white
         setItemList(validation.items, `${validation.count} items loaded from ${file.name}`, true);
         setExistingListStatus(`${validation.count} items loaded`);
-        
-        // Store filename in localStorage for persistence
-        localStorage.setItem('item_gen_existing_list_filename', fileName);
         
         e.target.value = '';
       });
