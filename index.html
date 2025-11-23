@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Item Generator v0.0.6</title>
+  <title>Item Generator v0.0.7</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-TdLkn9X3yYbplwVpO6ghPEP3syyLBb4Z8RXOqfN4KVm3vIPpcPpC5XJK0A0VYHkH3VddOZXS6SmfDk5F7bP2Nw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -565,7 +565,7 @@
     </div>
   </div>
   <div class="main-card">
-    <h2>Item Generator v0.0.6</h2>
+    <h2>Item Generator v0.0.7</h2>
 
     <!-- ============================================================================= -->
     <!-- SECTION 1: GENERATE ITEMS -->
@@ -722,7 +722,7 @@
   </div>
 
   <script>
-    const APP_VERSION = 'v0.0.6';
+    const APP_VERSION = 'v0.0.7';
     const DEFAULTS = {
       company: "Nike",
       website: "nike.com",
@@ -823,61 +823,122 @@
 
       // Function to filter image files (shared by preview and upload)
       function filterImageFiles(files, includeSubfolders) {
+        console.log('🔍 [FILTER] Starting filterImageFiles');
+        console.log('🔍 [FILTER] Parameters:', { 
+          totalFiles: files ? files.length : 0, 
+          includeSubfolders: includeSubfolders 
+        });
+        
         const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'];
         let totalFiles = 0;
         let rootFiles = 0;
         let subfolderFiles = 0;
+        let nonImageFiles = 0;
+        let filteredRootFiles = 0;
+        let filteredSubfolderFiles = 0;
         
-        const filtered = Array.from(files).filter(file => {
+        const filtered = Array.from(files).filter((file, index) => {
           totalFiles++;
+          
+          // Log first 5 files for debugging
+          if (index < 5) {
+            console.log(`🔍 [FILTER] File ${index + 1}:`, {
+              name: file.name,
+              webkitRelativePath: file.webkitRelativePath || '(none)',
+              size: file.size,
+              type: file.type
+            });
+          }
           
           // Check file extension
           const ext = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
           if (!imageExtensions.includes(ext)) {
+            nonImageFiles++;
+            if (index < 5) {
+              console.log(`🔍 [FILTER] File ${index + 1} rejected: not an image (ext: ${ext})`);
+            }
             return false;
           }
           
           // If subfolders not included, exclude files that are in subfolders
           if (!includeSubfolders && file.webkitRelativePath) {
             const relativePath = file.webkitRelativePath;
-            // webkitRelativePath format:
-            // - Root file: "filename.jpg" (no '/')
-            // - Subfolder file: "subfolder/filename.jpg" (has '/')
-            // - Nested file: "subfolder/nested/filename.jpg" (has '/')
-            // Count path segments - if more than 1 (filename), it's in a subfolder
             const pathSegments = relativePath.split('/');
-            if (pathSegments.length > 1) {
+            const isInSubfolder = pathSegments.length > 1;
+            
+            if (index < 5) {
+              console.log(`🔍 [FILTER] File ${index + 1} path analysis:`, {
+                relativePath: relativePath,
+                pathSegments: pathSegments,
+                segmentCount: pathSegments.length,
+                isInSubfolder: isInSubfolder
+              });
+            }
+            
+            if (isInSubfolder) {
               subfolderFiles++;
+              if (index < 5) {
+                console.log(`🔍 [FILTER] File ${index + 1} rejected: in subfolder (includeSubfolders=false)`);
+              }
               return false; // File is in a subfolder
             } else {
               rootFiles++;
+              filteredRootFiles++;
+              if (index < 5) {
+                console.log(`🔍 [FILTER] File ${index + 1} accepted: root file`);
+              }
             }
           } else if (includeSubfolders) {
             // If including subfolders, count all files
             if (file.webkitRelativePath && file.webkitRelativePath.split('/').length > 1) {
               subfolderFiles++;
+              filteredSubfolderFiles++;
             } else {
               rootFiles++;
+              filteredRootFiles++;
             }
           } else {
+            // No webkitRelativePath (shouldn't happen with webkitdirectory, but handle it)
             rootFiles++;
+            filteredRootFiles++;
           }
           
           return true;
         });
         
-        console.log(`Filtered images: ${filtered.length} of ${totalFiles} (Root: ${rootFiles}, Subfolder: ${subfolderFiles}, Include subfolders: ${includeSubfolders})`);
+        console.log('🔍 [FILTER] Filtering complete:', {
+          totalFiles: totalFiles,
+          filteredCount: filtered.length,
+          rootFiles: rootFiles,
+          subfolderFiles: subfolderFiles,
+          nonImageFiles: nonImageFiles,
+          filteredRootFiles: filteredRootFiles,
+          filteredSubfolderFiles: filteredSubfolderFiles,
+          includeSubfolders: includeSubfolders
+        });
+        
         return filtered;
       }
       
       // Function to update image preview
       function updateImagePreview() {
+        console.log('📋 [PREVIEW] updateImagePreview() called');
+        
         const dirInput = document.getElementById('save_dir_file');
         const previewContainer = document.getElementById('imagePreviewContainer');
         const previewList = document.getElementById('imagePreviewList');
         const imageCount = document.getElementById('imageCount');
         
+        console.log('📋 [PREVIEW] Elements found:', {
+          dirInput: !!dirInput,
+          previewContainer: !!previewContainer,
+          previewList: !!previewList,
+          imageCount: !!imageCount,
+          filesCount: dirInput && dirInput.files ? dirInput.files.length : 0
+        });
+        
         if (!dirInput || !dirInput.files || dirInput.files.length === 0) {
+          console.log('📋 [PREVIEW] No files selected, hiding preview');
           if (previewContainer) {
             previewContainer.style.display = 'none';
           }
@@ -886,19 +947,28 @@
         
         const includeSubfoldersCheckbox = document.getElementById('include_subfolders');
         const includeSubfolders = includeSubfoldersCheckbox ? includeSubfoldersCheckbox.checked : false;
+        
+        console.log('📋 [PREVIEW] Checkbox state:', {
+          checkboxExists: !!includeSubfoldersCheckbox,
+          checked: includeSubfolders
+        });
+        
+        console.log('📋 [PREVIEW] Calling filterImageFiles with', dirInput.files.length, 'files');
         const imageFiles = filterImageFiles(dirInput.files, includeSubfolders);
         
         if (!previewContainer || !previewList || !imageCount) {
-          console.error('Preview elements not found');
+          console.error('📋 [PREVIEW] ERROR: Preview elements not found');
           return;
         }
         
         if (imageFiles.length === 0) {
+          console.log('📋 [PREVIEW] No image files after filtering, hiding preview');
           previewContainer.style.display = 'none';
           return;
         }
         
         // Show preview
+        console.log('📋 [PREVIEW] Showing preview with', imageFiles.length, 'images');
         previewContainer.style.display = 'block';
         imageCount.textContent = imageFiles.length;
         
@@ -914,21 +984,37 @@
         });
         
         previewList.innerHTML = html;
-        console.log(`Preview updated: ${imageFiles.length} images displayed`);
+        console.log('📋 [PREVIEW] Preview updated successfully:', {
+          imageCount: imageFiles.length,
+          previewVisible: previewContainer.style.display,
+          htmlLength: html.length
+        });
       }
       
       document.getElementById('save_dir_file').addEventListener('change', (e) => {
+        console.log('📁 [DIRECTORY] Directory selection changed');
+        console.log('📁 [DIRECTORY] Files selected:', e.target.files ? e.target.files.length : 0);
+        
         if (!e.target.files.length) {
+          console.log('📁 [DIRECTORY] No files selected, updating preview');
           updateImagePreview();
           return;
         }
+        
         const firstFile = e.target.files[0];
+        console.log('📁 [DIRECTORY] First file info:', {
+          name: firstFile.name,
+          webkitRelativePath: firstFile.webkitRelativePath || '(none)',
+          size: firstFile.size
+        });
+        
         let dirPath = '';
         if (firstFile.webkitRelativePath) {
           // Extract directory path from webkitRelativePath
           // For root files: webkitRelativePath = "filename.jpg", dirPath = ""
           // For subfolder files: webkitRelativePath = "subfolder/filename.jpg", dirPath = "subfolder"
           const parts = firstFile.webkitRelativePath.split('/');
+          console.log('📁 [DIRECTORY] Path parts:', parts);
           if (parts.length > 1) {
             parts.pop(); // Remove filename
             dirPath = parts.join('/');
@@ -938,18 +1024,26 @@
           parts.pop();
           dirPath = parts.join('/');
         }
+        
         if (dirPath) {
           document.getElementById('save_dir').value = dirPath;
+          console.log('📁 [DIRECTORY] Set directory path to:', dirPath);
         } else {
           // Root directory selected
           document.getElementById('save_dir').value = 'Root';
+          console.log('📁 [DIRECTORY] Root directory selected');
         }
+        
         // Always update preview when directory changes
+        console.log('📁 [DIRECTORY] Calling updateImagePreview()');
         updateImagePreview();
       });
       
       // Update preview when subfolders checkbox changes
-      document.getElementById('include_subfolders').addEventListener('change', updateImagePreview);
+      document.getElementById('include_subfolders').addEventListener('change', (e) => {
+        console.log('☑️ [CHECKBOX] Include subfolders changed:', e.target.checked);
+        updateImagePreview();
+      });
 
       document.getElementById('csv_out_file').addEventListener('change', (e) => {
         if (e.target.files.length > 0) {
@@ -1605,12 +1699,21 @@
     }
 
     async function handleUploadClick() {
+      console.log('⬆️ [UPLOAD] handleUploadClick() called');
+      
       // Get the directory picker element
       const dirInput = document.getElementById('save_dir_file');
       const uploadFolder = document.getElementById('upload_folder').value.trim();
       
+      console.log('⬆️ [UPLOAD] Initial state:', {
+        dirInputExists: !!dirInput,
+        filesCount: dirInput && dirInput.files ? dirInput.files.length : 0,
+        uploadFolder: uploadFolder
+      });
+      
       // Check if directory has been selected
       if (!dirInput || !dirInput.files || dirInput.files.length === 0) {
+        console.log('⬆️ [UPLOAD] No directory selected, prompting user');
         // If no directory selected, trigger the directory picker
         alert('Please select a directory first by clicking "Choose Directory".');
         dirInput?.click();
@@ -1623,6 +1726,7 @@
             }, 60000); // 60 second timeout
             
             const changeHandler = (e) => {
+              console.log('⬆️ [UPLOAD] Directory selected in upload handler');
               clearTimeout(timeout);
               dirInput.removeEventListener('change', changeHandler);
               resolve(e);
@@ -1631,22 +1735,44 @@
             dirInput.addEventListener('change', changeHandler);
           });
           // Update preview after directory selection
+          console.log('⬆️ [UPLOAD] Calling updateImagePreview() after directory selection');
           updateImagePreview();
         } catch (error) {
           // User cancelled or timed out
-          console.log('Directory selection cancelled or timed out');
+          console.log('⬆️ [UPLOAD] Directory selection cancelled or timed out:', error.message);
           return;
         }
       }
       
       // Use the same filtering logic as preview
-      const includeSubfolders = document.getElementById('include_subfolders').checked;
+      const includeSubfoldersCheckbox = document.getElementById('include_subfolders');
+      const includeSubfolders = includeSubfoldersCheckbox ? includeSubfoldersCheckbox.checked : false;
+      
+      console.log('⬆️ [UPLOAD] Checkbox state:', {
+        checkboxExists: !!includeSubfoldersCheckbox,
+        checked: includeSubfolders
+      });
+      
+      console.log('⬆️ [UPLOAD] Calling filterImageFiles with', dirInput.files.length, 'files');
       const imageFiles = filterImageFiles(dirInput.files, includeSubfolders);
       
+      console.log('⬆️ [UPLOAD] Filtered result:', {
+        imageFilesCount: imageFiles.length,
+        totalFiles: dirInput.files.length
+      });
+      
       if (imageFiles.length === 0) {
+        console.log('⬆️ [UPLOAD] No image files to upload');
         // Check if preview is showing - if so, use that info
         const previewContainer = document.getElementById('imagePreviewContainer');
-        if (previewContainer.style.display === 'none' || previewContainer.style.display === '') {
+        const previewVisible = previewContainer && previewContainer.style.display !== 'none' && previewContainer.style.display !== '';
+        console.log('⬆️ [UPLOAD] Preview container state:', {
+          exists: !!previewContainer,
+          display: previewContainer ? previewContainer.style.display : 'N/A',
+          visible: previewVisible
+        });
+        
+        if (!previewVisible) {
           alert('No image files found in selected directory. Supported formats: JPG, PNG, GIF, WebP, BMP\n\nPlease select a directory with images or check "Include subfolders" if images are in subfolders.');
         } else {
           alert('No image files match the current filter settings. Try checking "Include subfolders" if your images are in subfolders.');
@@ -1656,6 +1782,12 @@
       
       const uploadBtn = document.getElementById('upBtn');
       const uploadPreset = document.getElementById('upload_profile').value.trim();
+      
+      console.log('⬆️ [UPLOAD] Starting upload process:', {
+        imageCount: imageFiles.length,
+        uploadFolder: uploadFolder,
+        uploadPreset: uploadPreset
+      });
       
       // Disable button during upload
       uploadBtn.disabled = true;
@@ -1668,15 +1800,22 @@
         // Add folder and preset if provided
         if (uploadFolder) {
           formData.append('folder', uploadFolder);
+          console.log('⬆️ [UPLOAD] Added folder to FormData:', uploadFolder);
         }
         if (uploadPreset) {
           formData.append('preset', uploadPreset);
+          console.log('⬆️ [UPLOAD] Added preset to FormData:', uploadPreset);
         }
         
         // Add all image files
-        imageFiles.forEach(file => {
+        console.log('⬆️ [UPLOAD] Adding files to FormData...');
+        imageFiles.forEach((file, index) => {
           formData.append('files', file);
+          if (index < 3) {
+            console.log(`⬆️ [UPLOAD] Added file ${index + 1}:`, file.name);
+          }
         });
+        console.log(`⬆️ [UPLOAD] Total files added to FormData: ${imageFiles.length}`);
         
         logToConsole(`Starting upload of ${imageFiles.length} images to Cloudinary...`, 'info');
         if (uploadFolder) {
@@ -1840,6 +1979,14 @@
       registerEventHandlers();
       apiCall('app_opened', {});
       logToConsole(`Item Generator ${APP_VERSION} initialized`, 'success');
+      
+      // Log instructions for viewing console
+      console.log('%c📊 DEBUG LOGGING ENABLED', 'color: #00ff00; font-size: 16px; font-weight: bold;');
+      console.log('%cTo view detailed logs:', 'color: #00ff00; font-size: 14px;');
+      console.log('%c1. Press F12 (or Right-click → Inspect)', 'color: #ffff00;');
+      console.log('%c2. Click the "Console" tab', 'color: #ffff00;');
+      console.log('%c3. Look for logs prefixed with: 🔍 [FILTER], 📋 [PREVIEW], 📁 [DIRECTORY], ⬆️ [UPLOAD], ☑️ [CHECKBOX]', 'color: #ffff00;');
+      console.log('%cAll logs are prefixed with emojis for easy identification', 'color: #00ff00;');
     });
 
     function generatePowerShellScript(csvFileName, zipFileName) {
