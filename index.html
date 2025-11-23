@@ -676,7 +676,7 @@
         <label class="form-label">Existing Item List:</label>
         <div style="flex:1; position: relative;">
         <input type="file" id="items_file" class="form-control" accept=".txt" style="display:none;" />
-          <input type="text" id="existing_list" class="form-control" placeholder="Load or enter a .txt item list path" style="flex:1; padding-right: 200px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;" />
+          <input type="text" id="existing_list" class="form-control" placeholder="Load or enter a .txt item list path" style="flex:1; padding-right: 200px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; font-family: 'Courier New', monospace; font-size: 0.9em;" />
           <span id="existingListStatus" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); color: var(--success); font-size: 0.85em; pointer-events: none; white-space: nowrap;"></span>
         </div>
         <button class="btn btn-secondary btn-sm" id="existingListLoadBtn" type="button">Load</button>
@@ -686,7 +686,7 @@
         <label class="form-label">Reference Items File:</label>
         <div style="flex:1; position: relative;">
           <input type="file" id="item_numbers_csv" class="form-control" accept=".csv,.xls,.xlsx" style="display:none;" />
-          <input type="text" id="reference_items_display" class="form-control" placeholder="Load or enter a CSV/Excel file path" style="padding-right: 200px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;" readonly />
+          <input type="text" id="reference_items_display" class="form-control" placeholder="Load or enter a CSV/Excel file path" style="padding-right: 200px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; font-family: 'Courier New', monospace; font-size: 0.9em;" readonly />
           <span id="itemNumbersStatus" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); color: var(--success); font-size: 0.85em; pointer-events: none; white-space: nowrap;"></span>
       </div>
         <button class="btn btn-secondary btn-sm" id="referenceItemsLoadBtn" type="button" title="CSV/Excel file with item numbers (one per row, first column)">Load</button>
@@ -736,10 +736,10 @@
         <button id="itemListSaveBtn" class="btn btn-outline-light btn-sm">Save List</button>
         <button id="itemListClearBtn" class="btn btn-outline-danger btn-sm">Clear</button>
         </div>
-        <div style="display: flex; justify-content: center; flex: 1;">
+        <div style="display: flex; justify-content: center; width: 100%; margin: 0.5rem 0;">
           <button id="dlBtn" class="btn btn-success" style="width: 200px;">Download Items</button>
         </div>
-        <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+        <div style="display: flex; flex-direction: column; gap: 0.5rem; width: 100%;">
           <div style="display: flex; align-items: center; gap: 0.5rem;">
             <input type="checkbox" id="uploadAfterDownload" style="margin: 0; cursor: pointer;">
             <label for="uploadAfterDownload" style="margin: 0; cursor: pointer; color: var(--text); font-size: 0.9em;">Upload to Cloudinary after download</label>
@@ -768,7 +768,7 @@
         <label class="form-label">Output CSV File:</label>
         <div style="flex:1; position: relative;">
           <input type="file" id="csv_out_file" class="form-control" accept=".csv,.xls,.xlsx" style="display:none;" />
-          <input type="text" id="csv_out" class="form-control" placeholder="Load or enter a CSV/Excel file path" style="flex:1; padding-right: 200px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;" readonly />
+          <input type="text" id="csv_out" class="form-control" placeholder="Load or enter a CSV/Excel file path" style="flex:1; padding-right: 200px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; font-family: 'Courier New', monospace; font-size: 0.9em;" readonly />
           <span id="csvOutStatus" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); color: var(--success); font-size: 0.85em; pointer-events: none; white-space: nowrap;"></span>
         </div>
         <button class="btn btn-secondary btn-sm" id="csvOutLoadBtn" type="button">Load</button>
@@ -1780,7 +1780,16 @@
         // File is valid, parse and store CSV data
         const csvOutInput = document.getElementById('csv_out');
         const fileName = file.name;
-        csvOutInput.value = fileName;
+        // Try to get folder path - browsers don't expose full path, but we can show folder\filename format
+        let displayPath = fileName;
+        if (file.webkitRelativePath) {
+          // If file has relative path, use it
+          const pathParts = file.webkitRelativePath.split('/');
+          if (pathParts.length > 1) {
+            displayPath = pathParts.slice(0, -1).join('\\') + '\\' + pathParts[pathParts.length - 1];
+          }
+        }
+        csvOutInput.value = displayPath;
         csvOutInput.title = fileName; // Tooltip shows filename on hover
         setCsvOutStatus(`${validation.rowCount} rows loaded`);
         
@@ -1841,7 +1850,16 @@
         localStorage.setItem('item_gen_reference_items_filename', fileName);
         // Update display textbox - show only filename (full path not available for security)
         if (referenceItemsDisplay) {
-          referenceItemsDisplay.value = fileName;
+          // Try to get folder path - browsers don't expose full path, but we can show folder\filename format
+          let displayPath = fileName;
+          if (file.webkitRelativePath) {
+            // If file has relative path, use it
+            const pathParts = file.webkitRelativePath.split('/');
+            if (pathParts.length > 1) {
+              displayPath = pathParts.slice(0, -1).join('\\') + '\\' + pathParts[pathParts.length - 1];
+            }
+          }
+          referenceItemsDisplay.value = displayPath;
           referenceItemsDisplay.title = fileName; // Tooltip shows filename on hover
         }
         referenceItems = await parseReferenceItemsFile(file);
@@ -1887,9 +1905,22 @@
         // Display only filename (browsers don't provide full path for security)
         const existingListInput = document.getElementById('existing_list');
         const fileName = file.name;
+        // Try to get folder path - browsers don't expose full path, but we can show folder\filename format
+        let displayPath = fileName;
+        if (file.webkitRelativePath) {
+          // If file has relative path, use it
+          const pathParts = file.webkitRelativePath.split('/');
+          if (pathParts.length > 1) {
+            displayPath = pathParts.slice(0, -1).join('\\') + '\\' + pathParts[pathParts.length - 1];
+          }
+        } else {
+          // Try to extract folder from file path if available (limited browser support)
+          // For now, show just filename - user can see full path in tooltip
+          displayPath = fileName;
+        }
         
-        existingListInput.value = fileName;
-        existingListInput.title = fileName; // Tooltip shows filename on hover (full path not available for security)
+        existingListInput.value = displayPath;
+        existingListInput.title = fileName; // Tooltip shows filename on hover
         // Auto-apply when loading from file - no warnings, display in white
         setItemList(validation.items, `${validation.count} items loaded from ${file.name}`, true);
         setExistingListStatus(`${validation.count} items loaded`);
