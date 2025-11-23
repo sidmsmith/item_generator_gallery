@@ -1068,27 +1068,60 @@
       dirInput.addEventListener('change', handleDirectorySelection);
       dirInput.addEventListener('input', handleDirectorySelection);
       
-      // Check when window regains focus (native dialog closes) - this is key for Windows folder picker
-      let checkingFiles = false;
-      let focusCheckTimeout = null;
+      // Track when dialog opens/closes - this is key for Windows folder picker
+      let dialogOpen = false;
+      let focusCheckTimeouts = [];
       
+      // Track when window loses focus (dialog opens)
+      window.addEventListener('blur', () => {
+        console.log('📁 [DIRECTORY] Window lost focus - dialog likely opened');
+        dialogOpen = true;
+      });
+      
+      // Check when window regains focus (native dialog closes)
       window.addEventListener('focus', () => {
-        console.log('📁 [DIRECTORY] Window regained focus');
-        if (focusCheckTimeout) clearTimeout(focusCheckTimeout);
+        console.log('📁 [DIRECTORY] Window regained focus - dialog likely closed');
         
-        // Check multiple times with increasing delays to catch files being set
-        [100, 300, 500, 1000].forEach((delay, index) => {
+        // Clear any existing timeouts
+        focusCheckTimeouts.forEach(clearTimeout);
+        focusCheckTimeouts = [];
+        
+        if (dialogOpen) {
+          dialogOpen = false;
+          
+          // Check multiple times with increasing delays to catch files being set
+          [50, 100, 200, 300, 500, 750, 1000, 1500, 2000].forEach((delay, index) => {
+            const timeout = setTimeout(() => {
+              const currentCount = dirInput.files ? dirInput.files.length : 0;
+              console.log(`📁 [DIRECTORY] Focus check ${index + 1} (${delay}ms):`, currentCount, 'files');
+              
+              if (currentCount > 0 && currentCount !== previousFileCount) {
+                console.log('📁 [DIRECTORY] Files detected after focus!', currentCount);
+                previousFileCount = currentCount;
+                handleDirectorySelection({ type: 'focus', target: dirInput });
+                // Clear remaining timeouts since we found the files
+                focusCheckTimeouts.forEach(clearTimeout);
+                focusCheckTimeouts = [];
+              }
+            }, delay);
+            focusCheckTimeouts.push(timeout);
+          });
+        }
+      });
+      
+      // Also check when page becomes visible again (handles tab switching)
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && dialogOpen) {
+          console.log('📁 [DIRECTORY] Page became visible - checking for files');
           setTimeout(() => {
             const currentCount = dirInput.files ? dirInput.files.length : 0;
-            console.log(`📁 [DIRECTORY] Focus check ${index + 1} (${delay}ms):`, currentCount, 'files');
-            
             if (currentCount > 0 && currentCount !== previousFileCount) {
-              console.log('📁 [DIRECTORY] Files detected after focus!', currentCount);
+              console.log('📁 [DIRECTORY] Files detected after visibility change!', currentCount);
               previousFileCount = currentCount;
-              handleDirectorySelection({ type: 'focus', target: dirInput });
+              handleDirectorySelection({ type: 'visibility', target: dirInput });
             }
-          }, delay);
-        });
+          }, 200);
+        }
       });
       
       // Track when directory picker is opened - use ID selector for reliability
@@ -1105,15 +1138,19 @@
           // Trigger the file input click
           dirInput.click();
           
-          // Also set up a more aggressive check after a delay
-          setTimeout(() => {
-            console.log('📁 [DIRECTORY] Post-click check (2s delay):', dirInput.files ? dirInput.files.length : 0, 'files');
-            if (dirInput.files && dirInput.files.length > 0 && dirInput.files.length !== previousFileCount) {
-              console.log('📁 [DIRECTORY] Files detected in post-click check!');
-              previousFileCount = dirInput.files.length;
-              handleDirectorySelection({ type: 'post-click', target: dirInput });
-            }
-          }, 2000);
+          // Set up aggressive polling right after click (before dialog even closes)
+          const pollDelays = [500, 1000, 1500, 2000, 2500, 3000];
+          pollDelays.forEach((delay, index) => {
+            setTimeout(() => {
+              const currentCount = dirInput.files ? dirInput.files.length : 0;
+              console.log(`📁 [DIRECTORY] Post-click check ${index + 1} (${delay}ms):`, currentCount, 'files');
+              if (currentCount > 0 && currentCount !== previousFileCount) {
+                console.log('📁 [DIRECTORY] Files detected in post-click check!', currentCount);
+                previousFileCount = currentCount;
+                handleDirectorySelection({ type: 'post-click', target: dirInput });
+              }
+            }, delay);
+          });
         });
       } else {
         console.error('📁 [DIRECTORY] Choose Directory button not found!');
