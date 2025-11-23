@@ -2570,8 +2570,14 @@
         return;
       }
       const website = document.getElementById('website').value.trim();
-      const count = parseInt(document.getElementById('count').value) || DEFAULTS.count;
-      if (count <= 0) {
+      // Validate Item Count - check raw input before applying defaults
+      const countInput = document.getElementById('count').value.trim();
+      if (!countInput || countInput === '') {
+        alert('Item Count is required and must be greater than 0');
+        return;
+      }
+      const count = parseInt(countInput);
+      if (isNaN(count) || count <= 0) {
         alert('Item Count must be greater than 0');
         return;
       }
@@ -2690,8 +2696,14 @@
 
       saveConfig();
       const sites = document.getElementById('sites').value.trim() || DEFAULTS.sites;
-      const images_per_item = parseInt(document.getElementById('images_per_item').value) || DEFAULTS.images_per_item;
-      if (images_per_item <= 0) {
+      // Validate Images Per Item - check raw input before applying defaults
+      const imagesPerItemInput = document.getElementById('images_per_item').value.trim();
+      if (!imagesPerItemInput || imagesPerItemInput === '') {
+        alert('Images Per Item is required and must be greater than 0');
+        return;
+      }
+      const images_per_item = parseInt(imagesPerItemInput);
+      if (isNaN(images_per_item) || images_per_item <= 0) {
         alert('Images Per Item must be greater than 0');
         return;
       }
