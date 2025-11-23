@@ -3608,8 +3608,7 @@
         csvDataToUse = csvData;
       } else {
         // Manual call: prioritize manually loaded CSV over downloaded CSV
-        // Use explicit window reference to ensure we're accessing the global variable
-        csvDataToUse = window.loadedCsvData || window.csvData;
+        csvDataToUse = loadedCsvData || csvData;
       }
       
       if (!csvDataToUse || csvDataToUse.length === 0) {
