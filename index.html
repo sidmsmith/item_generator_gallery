@@ -3610,11 +3610,27 @@
       } else {
         // Manual call: prioritize manually loaded CSV over downloaded CSV
         // Check loadedCsvData first - if it exists and is an array with data, use it
-        if (loadedCsvData && typeof loadedCsvData === 'object' && Array.isArray(loadedCsvData) && loadedCsvData.length > 0) {
+        console.log('CHECK: loadedCsvData exists?', !!loadedCsvData);
+        console.log('CHECK: loadedCsvData type?', typeof loadedCsvData);
+        console.log('CHECK: loadedCsvData isArray?', Array.isArray(loadedCsvData));
+        console.log('CHECK: loadedCsvData length?', loadedCsvData ? loadedCsvData.length : 'N/A');
+        
+        const condition1 = loadedCsvData && typeof loadedCsvData === 'object';
+        const condition2 = Array.isArray(loadedCsvData);
+        const condition3 = loadedCsvData && loadedCsvData.length > 0;
+        console.log('CHECK: condition1 (truthy && object)?', condition1);
+        console.log('CHECK: condition2 (isArray)?', condition2);
+        console.log('CHECK: condition3 (length > 0)?', condition3);
+        console.log('CHECK: All conditions?', condition1 && condition2 && condition3);
+        
+        if (condition1 && condition2 && condition3) {
+          console.log('SUCCESS: Assigning loadedCsvData to csvDataToUse');
           csvDataToUse = loadedCsvData;
+          console.log('SUCCESS: csvDataToUse assigned, length:', csvDataToUse.length);
         } else if (csvData && typeof csvData === 'object' && Array.isArray(csvData) && csvData.length > 0) {
           csvDataToUse = csvData;
         } else {
+          console.log('FAILED: Setting csvDataToUse to null');
           csvDataToUse = null;
         }
       }
