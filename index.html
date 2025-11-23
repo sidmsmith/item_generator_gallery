@@ -3642,6 +3642,10 @@
       // Determine which CSV data to use
       // If forceUseCsvData is true (called from download process), always use csvData
       // Otherwise, prioritize loadedCsvData (manually loaded file) over csvData (downloaded CSV)
+      console.log('Update WM: Starting. forceUseCsvData:', forceUseCsvData);
+      console.log('Update WM: loadedCsvData type:', typeof loadedCsvData, ', isArray:', Array.isArray(loadedCsvData), ', length:', loadedCsvData ? loadedCsvData.length : 'null');
+      console.log('Update WM: csvData type:', typeof csvData, ', isArray:', Array.isArray(csvData), ', length:', csvData ? csvData.length : 'null');
+      
       let csvDataToUse;
       if (forceUseCsvData) {
         csvDataToUse = csvData;
@@ -3650,10 +3654,15 @@
         // Manual call: prioritize manually loaded CSV over downloaded CSV
         csvDataToUse = loadedCsvData || csvData;
         console.log('Update WM: Using', loadedCsvData ? 'loadedCsvData' : 'csvData', ', rows:', csvDataToUse ? csvDataToUse.length : 0);
+        console.log('Update WM: csvDataToUse type:', typeof csvDataToUse, ', isArray:', Array.isArray(csvDataToUse));
       }
       
-      if (!csvDataToUse || csvDataToUse.length === 0) {
-        console.error('Update WM: No CSV data available. loadedCsvData:', loadedCsvData ? loadedCsvData.length : 'null', ', csvData:', csvData ? csvData.length : 'null');
+      if (!csvDataToUse || !Array.isArray(csvDataToUse) || csvDataToUse.length === 0) {
+        console.error('Update WM: No CSV data available.');
+        console.error('Update WM: csvDataToUse:', csvDataToUse);
+        console.error('Update WM: csvDataToUse type:', typeof csvDataToUse, ', isArray:', Array.isArray(csvDataToUse));
+        console.error('Update WM: loadedCsvData:', loadedCsvData, ', type:', typeof loadedCsvData, ', isArray:', Array.isArray(loadedCsvData), ', length:', loadedCsvData ? loadedCsvData.length : 'null');
+        console.error('Update WM: csvData:', csvData, ', type:', typeof csvData, ', isArray:', Array.isArray(csvData), ', length:', csvData ? csvData.length : 'null');
         alert('Please load a CSV file or download items first to create CSV data.');
         return;
       }
