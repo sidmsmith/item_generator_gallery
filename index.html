@@ -721,7 +721,7 @@
         <button id="itemListToggleBtn" class="btn btn-outline-light btn-sm">Hide</button>
       </div>
       <div id="itemListBody">
-        <div id="itemListTextarea" contenteditable="true" class="form-control" style="background:#0d1117;color:#fff;border:1px solid #333;min-height:200px;max-height:400px;overflow-y:auto;white-space:pre-wrap;word-wrap:break-word;font-family:inherit;padding:0.375rem 0.75rem;line-height:1.5;" role="textbox" aria-multiline="true"></div>
+        <textarea id="itemListTextarea" class="form-control" rows="8" style="background:#0d1117;color:#fff;border:1px solid #333;"></textarea>
         <div id="unappliedChangesBadge" style="display: none; margin-top: 0.5rem; padding: 0.25rem 0.5rem; background: rgba(255, 165, 0, 0.2); border: 1px solid #ffa500; border-radius: 4px; color: #ffa500; font-size: 0.85em;">
           <i class="fas fa-exclamation-triangle" style="margin-right: 0.25rem;"></i>
           <span id="unappliedChangesCount">0</span> unapplied change(s) - Click "Apply Changes" or they will be auto-applied on Download
@@ -1863,41 +1863,10 @@
       // Add event listener to textarea to detect changes
       const itemListTextarea = document.getElementById('itemListTextarea');
       if (itemListTextarea) {
-        let renderTimeout;
-        
-        // Handle input events - update badge only, don't re-render during active editing
-        itemListTextarea.addEventListener('input', () => {
-          clearTimeout(renderTimeout);
-          
-          // Update badge immediately without re-rendering (preserves cursor and natural editing)
-          checkForUnappliedChanges(false); // false = don't render highlights
-          
-          // Only re-render highlights after user has completely stopped editing for 3 seconds
-          // This prevents any interference with typing, Enter, or other editing actions
-          renderTimeout = setTimeout(() => {
-            checkForUnappliedChanges(true); // true = render highlights with cursor preservation
-          }, 3000); // 3 second delay - only render when user has definitely stopped
-        });
-        
-        // Handle blur - re-render when user leaves the field
-        itemListTextarea.addEventListener('blur', () => {
-          clearTimeout(renderTimeout);
-          // Delay to ensure cursor position is saved and DOM is stable
-          setTimeout(() => {
-            checkForUnappliedChanges(true); // Render highlights when leaving field
-          }, 100);
-        });
-        
-        // Handle paste events - prevent HTML formatting, keep plain text
-        itemListTextarea.addEventListener('paste', (e) => {
-          e.preventDefault();
-          const text = (e.clipboardData || window.clipboardData).getData('text/plain');
-          document.execCommand('insertText', false, text);
-          clearTimeout(renderTimeout);
-          // Re-render with highlights after paste, but with longer delay
-          renderTimeout = setTimeout(() => {
-            checkForUnappliedChanges(true);
-          }, 2000);
+        itemListTextarea.addEventListener('input', checkForUnappliedChanges);
+        itemListTextarea.addEventListener('paste', () => {
+          // Delay check to allow paste to complete
+          setTimeout(checkForUnappliedChanges, 10);
         });
       }
 
@@ -1911,8 +1880,7 @@
 
       document.getElementById('itemListSaveBtn').addEventListener('click', () => {
         const textarea = document.getElementById('itemListTextarea');
-        const textValue = getTextareaValue().trim();
-        const content = textValue.length ? textValue : currentItemList.join('\n');
+        const content = textarea.value.trim().length ? textarea.value : currentItemList.join('\n');
         const outputPath = document.getElementById('existing_list').value || 'items.txt';
         const fileName = outputPath.split(/[/\\]/).pop() || 'items.txt';
         downloadTextFile(content, fileName.endsWith('.txt') ? fileName : `${fileName}.txt`);
@@ -1970,163 +1938,26 @@
       return normalized;
     }
 
-    function getTextareaValue() {
-      const textarea = document.getElementById('itemListTextarea');
-      if (!textarea) return '';
-      // For contentEditable div, use textContent or innerText
-      return textarea.textContent || textarea.innerText || '';
-    }
-
-    function saveCursorPosition() {
-      const textarea = document.getElementById('itemListTextarea');
-      if (!textarea || !window.getSelection) return null;
-      
-      const selection = window.getSelection();
-      if (selection.rangeCount === 0) return null;
-      
-      const range = selection.getRangeAt(0);
-      const preCaretRange = range.cloneRange();
-      preCaretRange.selectNodeContents(textarea);
-      preCaretRange.setEnd(range.endContainer, range.endOffset);
-      
-      return {
-        start: preCaretRange.toString().length,
-        end: preCaretRange.toString().length
-      };
-    }
-
-    function restoreCursorPosition(savedPosition) {
-      if (!savedPosition) return;
-      
-      const textarea = document.getElementById('itemListTextarea');
-      if (!textarea || !window.getSelection) return;
-      
-      try {
-        const selection = window.getSelection();
-        const range = document.createRange();
-        
-        let charCount = 0;
-        let nodeStack = [textarea];
-        let node;
-        let foundStart = false;
-        
-        while (!foundStart && (node = nodeStack.pop())) {
-          if (node.nodeType === Node.TEXT_NODE) {
-            const nextCharCount = charCount + node.textContent.length;
-            if (savedPosition.start <= nextCharCount) {
-              range.setStart(node, savedPosition.start - charCount);
-              range.setEnd(node, savedPosition.end - charCount);
-              foundStart = true;
-            }
-            charCount = nextCharCount;
-          } else {
-            let i = node.childNodes.length;
-            while (i--) {
-              nodeStack.push(node.childNodes[i]);
-            }
-          }
-        }
-        
-        if (foundStart) {
-          selection.removeAllRanges();
-          selection.addRange(range);
-        }
-      } catch (e) {
-        // Ignore cursor restoration errors
-      }
-    }
-
-    function renderItemListWithHighlights(preserveCursor = false) {
-      const textarea = document.getElementById('itemListTextarea');
-      if (!textarea) return;
-      
-      // Save cursor position before re-rendering
-      const savedPosition = preserveCursor ? saveCursorPosition() : null;
-      
-      const currentValue = currentItemList.join('\n');
-      const textareaValue = getTextareaValue().trim();
-      
-      // If values match, render all in white
-      if (textareaValue === currentValue) {
-        textarea.innerHTML = currentValue.split('\n').map(line => {
-          return line ? `<span style="color: #fff;">${escapeHtml(line)}</span>` : '<br>';
-        }).join('\n');
-        if (savedPosition) restoreCursorPosition(savedPosition);
-        return;
-      }
-      
-      // Compare line by line
-      const originalLines = currentValue.split('\n');
-      const newLines = textareaValue.split(/\r?\n/);
-      
-      // Build HTML with line-by-line styling
-      const htmlLines = [];
-      const maxLines = Math.max(originalLines.length, newLines.length);
-      
-      for (let i = 0; i < maxLines; i++) {
-        const originalLine = originalLines[i] || '';
-        const newLine = newLines[i] || '';
-        
-        if (originalLine.trim() === newLine.trim()) {
-          // Line unchanged - white
-          htmlLines.push(`<span style="color: #fff;">${escapeHtml(newLine || originalLine)}</span>`);
-        } else if (i >= originalLines.length) {
-          // New line added - red
-          htmlLines.push(`<span style="color: #ff6b6b;">${escapeHtml(newLine)}</span>`);
-        } else if (i >= newLines.length) {
-          // Line removed - don't show (or show as deleted)
-          continue;
-        } else {
-          // Line changed - red
-          htmlLines.push(`<span style="color: #ff6b6b;">${escapeHtml(newLine)}</span>`);
-        }
-      }
-      
-      textarea.innerHTML = htmlLines.join('\n');
-      
-      // Restore cursor position after re-rendering
-      if (savedPosition) {
-        setTimeout(() => restoreCursorPosition(savedPosition), 0);
-      }
-    }
-
-    function escapeHtml(text) {
-      const div = document.createElement('div');
-      div.textContent = text;
-      return div.innerHTML;
-    }
 
     function updateItemListTextarea(message, autoApply = false) {
       const textarea = document.getElementById('itemListTextarea');
       if (!textarea) return;
       
-      // If auto-applying (e.g., loading from file), update currentItemList and render in white
-      if (autoApply) {
-        // Render all in white since we're applying the changes
-        const value = currentItemList.join('\n');
-        textarea.innerHTML = value.split('\n').map(line => {
-          return line ? `<span style="color: #fff;">${escapeHtml(line)}</span>` : '<br>';
-        }).join('\n');
-      } else {
-        // Normal update - render with highlights
-        renderItemListWithHighlights();
-      }
-      
+      textarea.value = currentItemList.join('\n');
       const status = document.getElementById('itemListStatus');
       status.textContent = message || (currentItemList.length ? `${currentItemList.length} items in list` : 'No items loaded yet.');
-      
       // Clear unapplied changes visual indicators
       checkForUnappliedChanges();
     }
 
-    function checkForUnappliedChanges(renderHighlights = true) {
+    function checkForUnappliedChanges() {
       const textarea = document.getElementById('itemListTextarea');
       const badge = document.getElementById('unappliedChangesBadge');
       const countSpan = document.getElementById('unappliedChangesCount');
       
       if (!textarea || !badge || !countSpan) return;
       
-      const textareaValue = getTextareaValue().trim();
+      const textareaValue = textarea.value.trim();
       const currentValue = currentItemList.join('\n');
       
       // Check if textarea differs from currentItemList
@@ -2155,24 +1986,18 @@
         badge.style.display = 'block';
         countSpan.textContent = changeCount;
         
-        // Only re-render highlights if requested (not during active typing)
-        if (renderHighlights) {
-          renderItemListWithHighlights(true); // Preserve cursor
-        }
+        // Apply orange color to textarea text to match warning badge
+        textarea.style.color = '#ffa500'; // Orange color matching the badge
       } else {
-        // Hide badge
+        // Hide badge and restore normal color
         badge.style.display = 'none';
-        
-        // Render all in white only if requested
-        if (renderHighlights) {
-          renderItemListWithHighlights(true); // Preserve cursor
-        }
+        textarea.style.color = '#fff'; // Normal white color
       }
     }
 
     function applyChangesFromTextarea() {
       const textarea = document.getElementById('itemListTextarea');
-      const textValue = getTextareaValue().trim();
+      const textValue = textarea.value.trim();
       
       // Check if textarea is empty
       if (!textValue || textValue.length === 0) {
@@ -2523,7 +2348,7 @@
     async function handleDownloadClick() {
       // Check for unapplied changes in textarea and auto-apply if they exist
       const textarea = document.getElementById('itemListTextarea');
-      const textareaValue = textarea ? getTextareaValue().trim() : '';
+      const textareaValue = textarea ? textarea.value.trim() : '';
       const currentValue = currentItemList.join('\n');
       const hasUnappliedChanges = textareaValue !== currentValue;
       
