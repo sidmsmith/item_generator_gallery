@@ -768,9 +768,112 @@ def cleanup_csv():
 @app.route('/api/upload_cloudinary', methods=['POST'])
 def upload_cloudinary():
     """Upload images to Cloudinary"""
-    # This will be implemented to upload images to Cloudinary
-    # For now, return placeholder
-    return jsonify({"success": False, "error": "Not yet implemented"})
+    try:
+        # Configure Cloudinary
+        cloudinary.config(
+            cloud_name=CLOUD_NAME,
+            api_key=API_KEY_CLOUD,
+            api_secret=API_SECRET_CLOUD
+        )
+        
+        # Get form data
+        upload_folder = request.form.get('folder', '').strip()
+        upload_preset = request.form.get('preset', '').strip()
+        
+        # Get uploaded files
+        if 'files' not in request.files:
+            return jsonify({"success": False, "error": "No files provided"})
+        
+        files = request.files.getlist('files')
+        if not files or files[0].filename == '':
+            return jsonify({"success": False, "error": "No files selected"})
+        
+        # Filter image files only
+        image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'}
+        image_files = []
+        for f in files:
+            filename = f.filename.lower()
+            if any(filename.endswith(ext) for ext in image_extensions):
+                image_files.append(f)
+        
+        if not image_files:
+            return jsonify({"success": False, "error": "No valid image files found. Supported formats: JPG, PNG, GIF, WebP, BMP"})
+        
+        uploaded_results = []
+        failed_uploads = []
+        
+        log_to_console(f"Starting upload of {len(image_files)} images to Cloudinary...")
+        
+        for idx, img_file in enumerate(image_files):
+            try:
+                filename = img_file.filename
+                log_to_console(f"Uploading {idx + 1}/{len(image_files)}: {filename}")
+                
+                # Prepare upload options
+                upload_options = {}
+                if upload_folder:
+                    # Use folder in public_id: "folder/filename" (without extension)
+                    name_without_ext = os.path.splitext(filename)[0]
+                    upload_options['public_id'] = f"{upload_folder}/{name_without_ext}"
+                else:
+                    # No folder, use just the filename without extension
+                    upload_options['public_id'] = os.path.splitext(filename)[0]
+                
+                if upload_preset:
+                    upload_options['upload_preset'] = upload_preset
+                
+                # Read file content
+                img_file.seek(0)
+                file_content = img_file.read()
+                
+                # Upload to Cloudinary
+                result = cloudinary.uploader.upload(
+                    file_content,
+                    **upload_options
+                )
+                
+                cloudinary_url = result.get('secure_url') or result.get('url', '')
+                
+                uploaded_results.append({
+                    "filename": filename,
+                    "cloudinary_url": cloudinary_url,
+                    "public_id": result.get('public_id', ''),
+                    "success": True
+                })
+                
+                log_to_console(f"✓ Successfully uploaded: {filename}")
+                
+            except cloudinary.exceptions.Error as e:
+                error_msg = str(e)
+                log_to_console(f"✗ Failed to upload {filename}: {error_msg}", "[ERROR]")
+                failed_uploads.append({
+                    "filename": filename,
+                    "error": error_msg,
+                    "success": False
+                })
+            except Exception as e:
+                error_msg = str(e)
+                log_to_console(f"✗ Error uploading {filename}: {error_msg}", "[ERROR]")
+                failed_uploads.append({
+                    "filename": filename,
+                    "error": error_msg,
+                    "success": False
+                })
+        
+        log_to_console(f"Upload complete: {len(uploaded_results)} successful, {len(failed_uploads)} failed")
+        
+        return jsonify({
+            "success": True,
+            "uploaded": uploaded_results,
+            "failed": failed_uploads,
+            "total": len(image_files),
+            "successful": len(uploaded_results),
+            "failed_count": len(failed_uploads)
+        })
+        
+    except Exception as e:
+        log_to_console(f"Upload to Cloudinary failed: {str(e)}", "[ERROR]")
+        return jsonify({"success": False, "error": str(e)})
 
 @app.route('/api/update_wm', methods=['POST'])
 def update_wm():

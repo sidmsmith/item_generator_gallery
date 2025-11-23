@@ -1477,8 +1477,122 @@
       alert('Clean Up CSV functionality will be implemented');
     }
 
-    function handleUploadClick() {
-      alert('Upload to Cloudinary functionality will be implemented');
+    async function handleUploadClick() {
+      // Get the directory picker element
+      const dirInput = document.getElementById('save_dir_file');
+      const uploadFolder = document.getElementById('upload_folder').value.trim();
+      
+      // Check if directory has been selected
+      if (!dirInput.files || dirInput.files.length === 0) {
+        // If no directory selected, trigger the directory picker
+        dirInput.click();
+        
+        // Wait for user to select directory (with timeout)
+        try {
+          await new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+              reject(new Error('No directory selected'));
+            }, 60000); // 60 second timeout
+            
+            dirInput.addEventListener('change', (e) => {
+              clearTimeout(timeout);
+              resolve(e);
+            }, { once: true });
+          });
+        } catch (error) {
+          // User cancelled or timed out
+          return;
+        }
+      }
+      
+      const files = dirInput.files;
+      if (!files || files.length === 0) {
+        alert('Please select a directory containing images');
+        return;
+      }
+      
+      // Filter for image files only
+      const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'];
+      const imageFiles = Array.from(files).filter(file => {
+        const ext = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+        return imageExtensions.includes(ext);
+      });
+      
+      if (imageFiles.length === 0) {
+        alert('No image files found in selected directory. Supported formats: JPG, PNG, GIF, WebP, BMP');
+        return;
+      }
+      
+      const uploadBtn = document.getElementById('upBtn');
+      const uploadPreset = document.getElementById('upload_profile').value.trim();
+      
+      // Disable button during upload
+      uploadBtn.disabled = true;
+      uploadBtn.textContent = `Uploading ${imageFiles.length} images...`;
+      
+      try {
+        // Create FormData for file upload
+        const formData = new FormData();
+        
+        // Add folder and preset if provided
+        if (uploadFolder) {
+          formData.append('folder', uploadFolder);
+        }
+        if (uploadPreset) {
+          formData.append('preset', uploadPreset);
+        }
+        
+        // Add all image files
+        imageFiles.forEach(file => {
+          formData.append('files', file);
+        });
+        
+        logToConsole(`Starting upload of ${imageFiles.length} images to Cloudinary...`, 'info');
+        if (uploadFolder) {
+          logToConsole(`Using folder: ${uploadFolder}`, 'info');
+        }
+        if (uploadPreset) {
+          logToConsole(`Using preset: ${uploadPreset}`, 'info');
+        }
+        
+        // Upload to API
+        const response = await fetch('/api/upload_cloudinary', {
+          method: 'POST',
+          body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          logToConsole(`✓ Upload complete: ${result.successful} successful, ${result.failed_count} failed`, 'success');
+          
+          // Display results
+          if (result.uploaded && result.uploaded.length > 0) {
+            logToConsole(`Successfully uploaded ${result.uploaded.length} images:`, 'success');
+            result.uploaded.forEach(item => {
+              logToConsole(`  ✓ ${item.filename} → ${item.cloudinary_url}`, 'success');
+            });
+          }
+          
+          if (result.failed && result.failed.length > 0) {
+            logToConsole(`Failed to upload ${result.failed.length} images:`, 'error');
+            result.failed.forEach(item => {
+              logToConsole(`  ✗ ${item.filename}: ${item.error}`, 'error');
+            });
+          }
+          
+          alert(`Upload complete!\n\nSuccessful: ${result.successful}\nFailed: ${result.failed_count}\n\nCheck console for details.`);
+        } else {
+          logToConsole(`Upload failed: ${result.error}`, 'error');
+          alert(`Upload failed: ${result.error}`);
+        }
+      } catch (error) {
+        logToConsole(`Upload error: ${error.message}`, 'error');
+        alert(`Upload error: ${error.message}`);
+      } finally {
+        uploadBtn.disabled = false;
+        uploadBtn.textContent = 'Upload to Cloudinary';
+      }
     }
 
     async function handleWmUpdate() {
