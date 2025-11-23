@@ -1863,22 +1863,29 @@
       // Add event listener to textarea to detect changes
       const itemListTextarea = document.getElementById('itemListTextarea');
       if (itemListTextarea) {
-        // Handle input events - update badge only, don't re-render during typing
-        let inputTimeout;
+        let renderTimeout;
+        
+        // Handle input events - update badge only, don't re-render during active editing
         itemListTextarea.addEventListener('input', () => {
-          clearTimeout(inputTimeout);
-          // Update badge immediately without re-rendering (preserves cursor)
+          clearTimeout(renderTimeout);
+          
+          // Update badge immediately without re-rendering (preserves cursor and natural editing)
           checkForUnappliedChanges(false); // false = don't render highlights
-          // Re-render highlights only after user stops typing
-          inputTimeout = setTimeout(() => {
+          
+          // Only re-render highlights after user has completely stopped editing for 3 seconds
+          // This prevents any interference with typing, Enter, or other editing actions
+          renderTimeout = setTimeout(() => {
             checkForUnappliedChanges(true); // true = render highlights with cursor preservation
-          }, 500); // Longer debounce - 500ms after typing stops
+          }, 3000); // 3 second delay - only render when user has definitely stopped
         });
         
         // Handle blur - re-render when user leaves the field
         itemListTextarea.addEventListener('blur', () => {
-          clearTimeout(inputTimeout);
-          checkForUnappliedChanges(true); // Render highlights when leaving field
+          clearTimeout(renderTimeout);
+          // Delay to ensure cursor position is saved and DOM is stable
+          setTimeout(() => {
+            checkForUnappliedChanges(true); // Render highlights when leaving field
+          }, 100);
         });
         
         // Handle paste events - prevent HTML formatting, keep plain text
@@ -1886,10 +1893,11 @@
           e.preventDefault();
           const text = (e.clipboardData || window.clipboardData).getData('text/plain');
           document.execCommand('insertText', false, text);
-          // Re-render with highlights after paste (with cursor preservation)
-          setTimeout(() => {
+          clearTimeout(renderTimeout);
+          // Re-render with highlights after paste, but with longer delay
+          renderTimeout = setTimeout(() => {
             checkForUnappliedChanges(true);
-          }, 10);
+          }, 2000);
         });
       }
 
