@@ -867,9 +867,11 @@
           if (!includeSubfolders && file.webkitRelativePath) {
             const relativePath = file.webkitRelativePath;
             const pathSegments = relativePath.split('/');
-            // Root files: webkitRelativePath = "filename.jpg" (1 segment)
-            // Subfolder files: webkitRelativePath = "subfolder/filename.jpg" (2+ segments)
-            const isInSubfolder = pathSegments.length > 1;
+            // When selecting a folder with webkitdirectory, the path includes the folder name:
+            // Root files: webkitRelativePath = "images/filename.jpg" (2 segments: folder + filename)
+            // Subfolder files: webkitRelativePath = "images/Saved/filename.jpg" (3+ segments: folder + subfolder + filename)
+            // So: 2 segments = root file, 3+ segments = subfolder file
+            const isInSubfolder = pathSegments.length > 2;
             
             if (index < 5) {
               console.log(`🔍 [FILTER] File ${index + 1} path analysis:`, {
@@ -877,7 +879,8 @@
                 pathSegments: pathSegments,
                 segmentCount: pathSegments.length,
                 isInSubfolder: isInSubfolder,
-                filename: pathSegments[pathSegments.length - 1]
+                filename: pathSegments[pathSegments.length - 1],
+                folderName: pathSegments[0]
               });
             }
             
@@ -891,14 +894,21 @@
               rootFiles++;
               filteredRootFiles++;
               if (index < 5) {
-                console.log(`🔍 [FILTER] File ${index + 1} accepted: root file - path has 1 segment: "${relativePath}"`);
+                console.log(`🔍 [FILTER] File ${index + 1} accepted: root file - path has ${pathSegments.length} segment(s): "${relativePath}"`);
               }
             }
           } else if (includeSubfolders) {
             // If including subfolders, count all files
-            if (file.webkitRelativePath && file.webkitRelativePath.split('/').length > 1) {
-              subfolderFiles++;
-              filteredSubfolderFiles++;
+            // 2 segments = root file, 3+ segments = subfolder file
+            if (file.webkitRelativePath) {
+              const segmentCount = file.webkitRelativePath.split('/').length;
+              if (segmentCount > 2) {
+                subfolderFiles++;
+                filteredSubfolderFiles++;
+              } else {
+                rootFiles++;
+                filteredRootFiles++;
+              }
             } else {
               rootFiles++;
               filteredRootFiles++;
