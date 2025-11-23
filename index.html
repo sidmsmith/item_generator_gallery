@@ -3652,18 +3652,38 @@
         console.log('Update WM: Using csvData (from download), rows:', csvData ? csvData.length : 0);
       } else {
         // Manual call: prioritize manually loaded CSV over downloaded CSV
-        // Explicitly check and assign to avoid any potential issues
-        if (loadedCsvData && Array.isArray(loadedCsvData) && loadedCsvData.length > 0) {
-          csvDataToUse = loadedCsvData;
-          console.log('Update WM: Using loadedCsvData, rows:', csvDataToUse.length);
-        } else if (csvData && Array.isArray(csvData) && csvData.length > 0) {
-          csvDataToUse = csvData;
-          console.log('Update WM: Using csvData, rows:', csvDataToUse.length);
+        // Direct assignment - if loadedCsvData exists and is valid, use it
+        console.log('Update WM: Manual call - checking loadedCsvData first');
+        console.log('Update WM: loadedCsvData check:', {
+          truthy: !!loadedCsvData,
+          isArray: Array.isArray(loadedCsvData),
+          hasLength: loadedCsvData ? (loadedCsvData.length > 0) : false,
+          length: loadedCsvData ? loadedCsvData.length : 'N/A'
+        });
+        
+        // Direct assignment - bypass any potential issues with condition evaluation
+        if (loadedCsvData) {
+          console.log('Update WM: loadedCsvData exists, checking if it\'s a valid array...');
+          if (Array.isArray(loadedCsvData)) {
+            console.log('Update WM: loadedCsvData is an array, checking length...');
+            if (loadedCsvData.length > 0) {
+              console.log('Update WM: loadedCsvData is valid - assigning to csvDataToUse');
+              csvDataToUse = loadedCsvData;
+              console.log('Update WM: Successfully assigned loadedCsvData, rows:', csvDataToUse.length);
+            } else {
+              console.log('Update WM: loadedCsvData array is empty');
+              csvDataToUse = (csvData && Array.isArray(csvData) && csvData.length > 0) ? csvData : null;
+            }
+          } else {
+            console.log('Update WM: loadedCsvData is not an array, type:', typeof loadedCsvData);
+            csvDataToUse = (csvData && Array.isArray(csvData) && csvData.length > 0) ? csvData : null;
+          }
         } else {
-          csvDataToUse = null;
-          console.log('Update WM: Neither loadedCsvData nor csvData is available');
+          console.log('Update WM: loadedCsvData is falsy, checking csvData...');
+          csvDataToUse = (csvData && Array.isArray(csvData) && csvData.length > 0) ? csvData : null;
         }
-        console.log('Update WM: csvDataToUse type:', typeof csvDataToUse, ', isArray:', Array.isArray(csvDataToUse));
+        
+        console.log('Update WM: Final csvDataToUse:', csvDataToUse, ', type:', typeof csvDataToUse, ', isArray:', Array.isArray(csvDataToUse), ', length:', csvDataToUse ? csvDataToUse.length : 'N/A');
       }
       
       if (!csvDataToUse || !Array.isArray(csvDataToUse) || csvDataToUse.length === 0) {
