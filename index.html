@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Item Generator v0.2.0</title>
+  <title>Item Generator v0.3.0</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-TdLkn9X3yYbplwVpO6ghPEP3syyLBb4Z8RXOqfN4KVm3vIPpcPpC5XJK0A0VYHkH3VddOZXS6SmfDk5F7bP2Nw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -639,7 +639,7 @@
     </div>
   </div>
   <div class="main-card">
-    <h2>Item Generator v0.0.8</h2>
+    <h2>Item Generator v0.3.0</h2>
 
     <!-- ============================================================================= -->
     <!-- SECTION 1: GENERATE ITEMS -->
@@ -670,7 +670,7 @@
       <div class="input-row">
         <label class="form-label">Existing Item List:</label>
         <div style="flex:1; position: relative;">
-          <input type="file" id="items_file" class="form-control" accept=".txt" style="display:none;" />
+        <input type="file" id="items_file" class="form-control" accept=".txt" style="display:none;" />
           <input type="text" id="existing_list" class="form-control" placeholder="Load or enter a .txt item list path" style="flex:1; padding-right: 200px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;" />
           <span id="existingListStatus" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); color: var(--success); font-size: 0.85em; pointer-events: none; white-space: nowrap;"></span>
         </div>
@@ -683,7 +683,7 @@
           <input type="file" id="item_numbers_csv" class="form-control" accept=".csv,.xls,.xlsx" style="display:none;" />
           <input type="text" id="reference_items_display" class="form-control" placeholder="Load or enter a CSV/Excel file path" style="padding-right: 200px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;" readonly />
           <span id="itemNumbersStatus" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); color: var(--success); font-size: 0.85em; pointer-events: none; white-space: nowrap;"></span>
-        </div>
+      </div>
         <button class="btn btn-secondary btn-sm" id="referenceItemsLoadBtn" type="button" title="CSV/Excel file with item numbers (one per row, first column)">Load</button>
       </div>
 
@@ -721,12 +721,16 @@
       </div>
       <div id="itemListBody">
         <textarea id="itemListTextarea" class="form-control" rows="8" style="background:#0d1117;color:#fff;border:1px solid #333;"></textarea>
-      <div class="btn-row mt-2" style="gap:0.5rem;justify-content:center;flex-wrap:wrap;">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem;">
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
         <button id="itemListApplyBtn" class="btn btn-primary btn-sm">Apply Changes</button>
         <button id="itemListSaveBtn" class="btn btn-outline-light btn-sm">Save List</button>
         <button id="itemListClearBtn" class="btn btn-outline-danger btn-sm">Clear</button>
-        <button id="dlBtn" class="btn btn-success btn-sm">Download Items</button>
-        <div style="display: flex; align-items: center; gap: 0.5rem; margin-left: 0.5rem;">
+        </div>
+        <div style="display: flex; justify-content: center; flex: 1;">
+          <button id="dlBtn" class="btn btn-success" style="width: 200px;">Download Items</button>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
           <input type="checkbox" id="uploadAfterDownload" style="margin: 0; cursor: pointer;">
           <label for="uploadAfterDownload" style="margin: 0; cursor: pointer; color: var(--text); font-size: 0.9em;">Upload to Cloudinary after download</label>
         </div>
@@ -746,6 +750,16 @@
       <div class="section-title">Workflow</div>
 
       <div class="input-row">
+        <label class="form-label">Output CSV File:</label>
+        <div style="flex:1; position: relative;">
+          <input type="file" id="csv_out_file" class="form-control" accept=".csv,.xls,.xlsx" style="display:none;" />
+          <input type="text" id="csv_out" class="form-control" placeholder="Load or enter a CSV/Excel file path" style="flex:1; padding-right: 200px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;" readonly />
+          <span id="csvOutStatus" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); color: var(--success); font-size: 0.85em; pointer-events: none; white-space: nowrap;"></span>
+        </div>
+        <button class="btn btn-secondary btn-sm" id="csvOutLoadBtn" type="button">Load</button>
+      </div>
+
+      <div class="input-row">
         <label class="form-label">Cloudinary Prefix:</label>
         <input type="text" id="prefix" class="form-control" placeholder="https://res.cloudinary.com/..." />
       </div>
@@ -760,7 +774,7 @@
           <label for="include_subfolders" style="margin: 0; font-size: 0.9em; color: var(--text);">Include subfolders</label>
         </div>
       </div>
-      
+
       <!-- Image Preview Section -->
       <div id="imagePreviewContainer" style="display: none; margin-top: 0.5rem; margin-left: 1rem; padding: 0.75rem; background: var(--input-bg); border: 2px solid var(--primary); border-radius: 6px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
@@ -779,13 +793,6 @@
         <div id="imagePreviewNote" style="font-size: 0.8em; color: #999; margin-top: 0.5rem; font-style: italic;">
           Note: The browser may show "Upload 30 files" in the native dialog - this is normal. After confirming, the preview above shows the filtered count based on your "Include subfolders" setting. Click images to toggle selection (selected images have a cyan halo).
         </div>
-      </div>
-
-      <div class="input-row">
-        <label class="form-label">Output CSV File:</label>
-        <input type="file" id="csv_out_file" class="form-control" accept=".csv,.xls,.xlsx" style="display: none;" />
-        <input type="text" id="csv_out" class="form-control" placeholder="imagedownload.csv" readonly style="flex: 1;" />
-        <button class="btn btn-secondary btn-sm" onclick="document.getElementById('csv_out_file').click();" type="button">Choose File</button>
       </div>
 
       <div class="input-row">
@@ -832,7 +839,7 @@
   </div>
 
   <script>
-    const APP_VERSION = 'v0.2.0';
+    const APP_VERSION = 'v0.3.0';
     const DEFAULTS = {
       company: "Nike",
       website: "nike.com",
@@ -1032,8 +1039,8 @@
         });
         
         return filtered;
-    }
-    
+      }
+
     function initUI() {
       let config = loadConfig();
       config = normalizePathDefaults(config);
@@ -1042,7 +1049,7 @@
         const el = document.getElementById(key);
         if (el) el.value = config[key];
       }
-      
+
       // Restore Reference Items filename if stored
       const storedRefFilename = localStorage.getItem('item_gen_reference_items_filename');
       if (storedRefFilename) {
@@ -1060,6 +1067,16 @@
         if (existingListInput) {
           existingListInput.value = storedExistingFilename;
           existingListInput.title = storedExistingFilename; // Tooltip shows filename
+        }
+      }
+      
+      // Restore CSV Output filename if stored
+      const storedCsvOutFilename = localStorage.getItem('item_gen_csv_out_filename');
+      if (storedCsvOutFilename) {
+        const csvOutInput = document.getElementById('csv_out');
+        if (csvOutInput) {
+          csvOutInput.value = storedCsvOutFilename;
+          csvOutInput.title = storedCsvOutFilename; // Tooltip shows filename
         }
       }
       
@@ -1502,7 +1519,7 @@
             
             if (parts.length > 1) {
               parts.pop(); // Remove filename
-              dirPath = parts.join('/');
+            dirPath = parts.join('/');
             }
           } else if (firstFile.path) {
             const parts = firstFile.path.split(/[/\\]/);
@@ -1711,10 +1728,45 @@
         deselectAllBtn.addEventListener('click', deselectAllImages);
       }
 
-      document.getElementById('csv_out_file').addEventListener('change', (e) => {
-        if (e.target.files.length > 0) {
-          document.getElementById('csv_out').value = e.target.files[0].name;
+      // CSV Output file picker button
+      const csvOutLoadBtn = document.getElementById('csvOutLoadBtn');
+      if (csvOutLoadBtn) {
+        csvOutLoadBtn.addEventListener('click', () => {
+          document.getElementById('csv_out_file').click();
+        });
+      }
+
+      document.getElementById('csv_out_file').addEventListener('change', async (e) => {
+        if (!e.target.files.length) {
+          document.getElementById('csv_out').value = '';
+          setCsvOutStatus('');
+          localStorage.removeItem('item_gen_csv_out_filename');
+          return;
         }
+        const file = e.target.files[0];
+        
+        // Validate CSV file format
+        const validation = await validateCsvFile(file);
+        
+        if (!validation.valid) {
+          // Show error message
+          setCsvOutStatus('');
+          alert(`Invalid CSV file format: ${validation.error}`);
+          document.getElementById('csv_out').value = '';
+          e.target.value = '';
+          return;
+        }
+
+        // File is valid, update display
+        const csvOutInput = document.getElementById('csv_out');
+        const fileName = file.name;
+        csvOutInput.value = fileName;
+        csvOutInput.title = fileName; // Tooltip shows filename on hover
+        setCsvOutStatus(`${validation.rowCount} rows loaded`);
+        
+        // Store filename in localStorage for persistence
+        localStorage.setItem('item_gen_csv_out_filename', fileName);
+        e.target.value = '';
       });
 
       // Reference Items file picker button
@@ -1946,6 +1998,79 @@
       document.getElementById('existingListStatus').textContent = text || '';
     }
 
+    function setCsvOutStatus(text) {
+      document.getElementById('csvOutStatus').textContent = text || '';
+    }
+
+    async function validateCsvFile(file) {
+      if (!file) {
+        return { valid: false, error: 'No file selected' };
+      }
+
+      const extension = file.name.split('.').pop().toLowerCase();
+      if (!['csv', 'xls', 'xlsx'].includes(extension)) {
+        return { valid: false, error: 'File must be a CSV or Excel file (.csv, .xls, .xlsx)' };
+      }
+
+      try {
+        let rows = [];
+        
+        if (extension === 'csv') {
+          const text = await file.text();
+          rows = text.split(/\r?\n/).map(line => {
+            // Parse CSV line (handle quoted values)
+            const result = [];
+            let current = '';
+            let inQuotes = false;
+            for (let i = 0; i < line.length; i++) {
+              const char = line[i];
+              if (char === '"') {
+                inQuotes = !inQuotes;
+              } else if (char === ',' && !inQuotes) {
+                result.push(current.trim());
+                current = '';
+              } else {
+                current += char;
+              }
+            }
+            result.push(current.trim());
+            return result;
+          }).filter(row => row.some(cell => cell.length > 0)); // Filter empty rows
+        } else {
+          // Excel file
+          const buffer = await file.arrayBuffer();
+          const workbook = XLSX.read(buffer, { type: 'array' });
+          const sheetName = workbook.SheetNames[0];
+          const sheet = workbook.Sheets[sheetName];
+          rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+          rows = rows.map(row => Array.isArray(row) ? row.map(cell => String(cell || '').trim()) : []);
+          rows = rows.filter(row => row.some(cell => cell.length > 0)); // Filter empty rows
+        }
+
+        if (rows.length === 0) {
+          return { valid: false, error: 'File is empty or contains no data rows' };
+        }
+
+        // Check if we have at least a header row and one data row
+        if (rows.length < 2) {
+          return { valid: false, error: 'File must contain at least one data row (excluding header)' };
+        }
+
+        // Check if we have at least 4 columns
+        const maxColumns = Math.max(...rows.map(row => row.length));
+        if (maxColumns < 4) {
+          return { valid: false, error: `File must have at least 4 columns. Found ${maxColumns} column(s).` };
+        }
+
+        // Count data rows (excluding header)
+        const dataRowCount = rows.length - 1;
+
+        return { valid: true, rowCount: dataRowCount };
+      } catch (error) {
+        return { valid: false, error: `Error reading file: ${error.message}` };
+      }
+    }
+
     async function validateExistingListFile(file) {
       if (!file) {
         return { valid: false, error: 'No file selected' };
@@ -2057,7 +2182,49 @@
       return referenceItems.slice();
     }
 
+    function validateCurrentItemListFormat() {
+      // Validate format - same logic as validateExistingListFile
+      // Assumes currentItemList is not empty (caller should check that first)
+      // Check for common issues that suggest wrong format:
+      // - Multiple items per line (comma-separated or tab-separated)
+      // - CSV format indicators
+      const hasMultipleItemsPerLine = currentItemList.some(item => {
+        // If an item has tabs, it's likely tab-separated format
+        if (item.includes('\t')) return true;
+        // If an item has commas and appears to have multiple columns, it's likely CSV format
+        if (item.includes(',')) {
+          const parts = item.split(',').map(p => p.trim()).filter(Boolean);
+          // If there are multiple non-empty parts, it might be CSV format
+          if (parts.length > 1 && parts.every(p => p.length > 0)) return true;
+        }
+        return false;
+      });
+
+      if (hasMultipleItemsPerLine) {
+        return { 
+          valid: false, 
+          error: 'File format appears invalid. Expected one item per line (plain text format). This file appears to be in CSV/Excel format. Please use a plain text file with one item per line.' 
+        };
+      }
+
+      return { valid: true };
+    }
+
     async function handleDownloadClick() {
+      // First check if Current Item List is empty
+      if (currentItemList.length === 0) {
+        alert('Item list cannot be empty. Please load or generate items before downloading.');
+        return;
+      }
+
+      // If Current Item List has items, validate the format
+      const itemListValidation = validateCurrentItemListFormat();
+      if (!itemListValidation.valid) {
+        alert(`Invalid item list format: ${itemListValidation.error}`);
+        return;
+      }
+
+      // Now check Reference Items
       if (!referenceItems.length) {
         alert('Please upload a Reference Items File before downloading images.');
         return;
@@ -2482,7 +2649,7 @@
     function handleCleanupClick() {
       alert('Clean Up CSV functionality will be implemented');
     }
-    
+
     // Function to upload images from zip content
     async function uploadFromZipContent(base64ZipContent) {
       try {
