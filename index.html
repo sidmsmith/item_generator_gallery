@@ -1936,7 +1936,9 @@
     }
 
     async function handleUploadClick() {
+      console.log('⬆️ [UPLOAD] ========================================');
       console.log('⬆️ [UPLOAD] handleUploadClick() called');
+      console.log('⬆️ [UPLOAD] ========================================');
       
       // Get the directory picker element
       const dirInput = document.getElementById('save_dir_file');
@@ -1948,37 +1950,14 @@
         uploadFolder: uploadFolder
       });
       
+      logToConsole('Upload to Cloudinary button clicked...', 'info');
+      
       // Check if directory has been selected
       if (!dirInput || !dirInput.files || dirInput.files.length === 0) {
         console.log('⬆️ [UPLOAD] No directory selected, prompting user');
-        // If no directory selected, trigger the directory picker
-        alert('Please select a directory first by clicking "Choose Directory".');
-        dirInput?.click();
-        
-        // Wait for user to select directory (with timeout)
-        try {
-          await new Promise((resolve, reject) => {
-            const timeout = setTimeout(() => {
-              reject(new Error('No directory selected'));
-            }, 60000); // 60 second timeout
-            
-            const changeHandler = (e) => {
-              console.log('⬆️ [UPLOAD] Directory selected in upload handler');
-              clearTimeout(timeout);
-              dirInput.removeEventListener('change', changeHandler);
-              resolve(e);
-            };
-            
-            dirInput.addEventListener('change', changeHandler);
-          });
-          // Update preview after directory selection
-          console.log('⬆️ [UPLOAD] Calling updateImagePreview() after directory selection');
-          updateImagePreview();
-        } catch (error) {
-          // User cancelled or timed out
-          console.log('⬆️ [UPLOAD] Directory selection cancelled or timed out:', error.message);
-          return;
-        }
+        logToConsole('Please select a directory first by clicking "Choose Directory" button.', 'error');
+        alert('Please select a directory first by clicking "Choose Directory" button.\n\nThen select your images folder and confirm the upload dialog.');
+        return;
       }
       
       // Use the same filtering logic as preview
