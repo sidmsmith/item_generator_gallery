@@ -1786,8 +1786,9 @@
           csvOutInput.value = '';
           // Restore red shading to indicate file needs to be loaded
           updateFileInputShading(csvOutInput, true);
-          // Clear loaded CSV data to force user to reload
+          // Clear BOTH loaded CSV data AND downloaded CSV data to force user to reload or download again
           loadedCsvData = null;
+          csvData = null;
           e.target.value = '';
           alert(`Invalid CSV file format: ${validation.error}`);
           return;
@@ -1841,7 +1842,9 @@
           alert(`Error parsing file: ${error.message || 'Failed to parse file. Please ensure the file is a valid CSV or Excel file.'}`);
           csvOutInput.value = '';
           updateFileInputShading(csvOutInput, true);
+          // Clear BOTH loaded CSV data AND downloaded CSV data to force user to reload or download again
           loadedCsvData = null;
+          csvData = null;
           e.target.value = '';
           return;
         }
