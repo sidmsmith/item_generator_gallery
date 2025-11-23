@@ -2117,8 +2117,9 @@
                     break;
                     
                   case 'complete':
-                    logToConsole(`✓ Upload complete: ${data.successful} successful, ${data.failed} failed (Total time: ${data.total_duration}s)`, 'success');
-                    alert(`Upload complete!\n\nSuccessful: ${data.successful}\nFailed: ${data.failed}\nTotal time: ${data.total_duration}s\n\nCheck console for details.`);
+                    const failedCount = data.failed || 0;
+                    logToConsole(`✓ Upload complete: ${data.successful} successful, ${failedCount} failed (Total time: ${data.total_duration}s)`, 'success');
+                    alert(`Upload complete!\n\nSuccessful: ${data.successful}\nFailed: ${failedCount}\nTotal time: ${data.total_duration}s\n\nCheck console for details.`);
                     break;
                 }
               } catch (e) {
