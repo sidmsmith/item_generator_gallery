@@ -1857,7 +1857,25 @@
 
       document.getElementById('itemListApplyBtn').addEventListener('click', () => {
         const textarea = document.getElementById('itemListTextarea');
-        const items = textarea.value.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+        const textValue = textarea.value.trim();
+        
+        // Check if textarea is empty
+        if (!textValue || textValue.length === 0) {
+          alert('Item list cannot be empty. Please enter at least one item.');
+          return;
+        }
+        
+        // Parse items from textarea
+        const items = textValue.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+        
+        // Validate format
+        const validation = validateItemListFormat(items);
+        if (!validation.valid) {
+          alert(`Invalid item list format: ${validation.error}`);
+          return;
+        }
+        
+        // Apply if valid
         setItemList(items, `Applied ${items.length} items from editor`);
       });
 
@@ -2063,8 +2081,37 @@
           return { valid: false, error: `File must have at least 4 columns. Found ${maxColumns} column(s).` };
         }
 
+        // Validate that all data rows (excluding header) have data in the first 4 columns
+        const headerRow = rows[0];
+        const dataRows = rows.slice(1); // All rows except header
+        
+        // Check each data row
+        const invalidRows = [];
+        dataRows.forEach((row, index) => {
+          // Check if first 4 columns have data (not empty/whitespace)
+          const requiredColumns = row.slice(0, 4);
+          const hasEmptyColumn = requiredColumns.some((cell, colIndex) => {
+            const cellValue = String(cell || '').trim();
+            return cellValue.length === 0;
+          });
+          
+          if (hasEmptyColumn) {
+            invalidRows.push(index + 2); // +2 because: +1 for header, +1 for 1-based row numbering
+          }
+        });
+
+        if (invalidRows.length > 0) {
+          const rowList = invalidRows.length <= 5 
+            ? invalidRows.join(', ')
+            : `${invalidRows.slice(0, 5).join(', ')} and ${invalidRows.length - 5} more`;
+          return { 
+            valid: false, 
+            error: `Invalid data: ${invalidRows.length} row(s) have empty values in required columns (first 4 columns). Rows with issues: ${rowList}. All rows must have data in the first 4 columns.` 
+          };
+        }
+
         // Count data rows (excluding header)
-        const dataRowCount = rows.length - 1;
+        const dataRowCount = dataRows.length;
 
         return { valid: true, rowCount: dataRowCount };
       } catch (error) {
@@ -2183,13 +2230,17 @@
       return referenceItems.slice();
     }
 
-    function validateCurrentItemListFormat() {
+    function validateItemListFormat(items) {
+      // Check if items array is empty
+      if (!items || items.length === 0) {
+        return { valid: false, error: 'Item list cannot be empty. Please enter at least one item.' };
+      }
+
       // Validate format - same logic as validateExistingListFile
-      // Assumes currentItemList is not empty (caller should check that first)
       // Check for common issues that suggest wrong format:
       // - Multiple items per line (comma-separated or tab-separated)
       // - CSV format indicators
-      const hasMultipleItemsPerLine = currentItemList.some(item => {
+      const hasMultipleItemsPerLine = items.some(item => {
         // If an item has tabs, it's likely tab-separated format
         if (item.includes('\t')) return true;
         // If an item has commas and appears to have multiple columns, it's likely CSV format
@@ -2209,6 +2260,12 @@
       }
 
       return { valid: true };
+    }
+
+    function validateCurrentItemListFormat() {
+      // Validate format - same logic as validateExistingListFile
+      // Assumes currentItemList is not empty (caller should check that first)
+      return validateItemListFormat(currentItemList);
     }
 
     async function handleDownloadClick() {
