@@ -679,14 +679,21 @@
       
       <!-- Image Preview Section -->
       <div id="imagePreviewContainer" style="display: none; margin-top: 0.5rem; margin-left: 1rem; padding: 0.75rem; background: var(--input-bg); border: 2px solid var(--primary); border-radius: 6px;">
-        <div style="font-size: 0.95em; color: var(--text); margin-bottom: 0.5rem; font-weight: bold;">
-          <span style="color: var(--primary);">📁 Selected Images:</span> <span id="imageCount" style="color: var(--success);">0</span> file(s)
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+          <div style="font-size: 0.95em; color: var(--text); font-weight: bold;">
+            <span style="color: var(--primary);">📁 Images:</span> <span id="imageCount" style="color: var(--success);">0</span> file(s) | 
+            <span style="color: var(--primary); margin-left: 0.5rem;">Selected:</span> <span id="selectedCount" style="color: var(--success);">0</span>
+          </div>
+          <div style="display: flex; gap: 0.5rem;">
+            <button id="selectAllImages" class="btn btn-secondary btn-sm" type="button" style="font-size: 0.8em; padding: 0.25rem 0.5rem;">Select All</button>
+            <button id="deselectAllImages" class="btn btn-secondary btn-sm" type="button" style="font-size: 0.8em; padding: 0.25rem 0.5rem;">Deselect All</button>
+          </div>
         </div>
         <div id="imagePreviewList" style="max-height: 200px; overflow-y: auto; background: var(--input-bg); border: 1px solid var(--border); border-radius: 4px; padding: 0.5rem; font-size: 0.85em; font-family: monospace;">
           <!-- Image list will be populated here -->
         </div>
         <div id="imagePreviewNote" style="font-size: 0.8em; color: #999; margin-top: 0.5rem; font-style: italic;">
-          Note: The browser may show "Upload 30 files" in the native dialog - this is normal. After confirming, the preview above shows the filtered count based on your "Include subfolders" setting.
+          Note: The browser may show "Upload 30 files" in the native dialog - this is normal. After confirming, the preview above shows the filtered count based on your "Include subfolders" setting. Uncheck images you don't want to upload.
         </div>
       </div>
 
@@ -712,6 +719,22 @@
         <button id="upBtn" type="button" class="btn btn-blue" style="width: 160px;">Upload to Cloudinary</button>
         <button id="wmBtn" class="btn btn-purple" style="width: 160px;">Update WM</button>
       </div>
+      
+      <!-- Upload Progress Bar -->
+      <div id="uploadProgressContainer" style="display: none; margin-top: 1rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+          <div style="font-size: 0.9em; color: var(--text);">
+            <span id="uploadProgressText">Uploading...</span>
+            <span id="uploadTimeRemaining" style="margin-left: 1rem; color: #999;"></span>
+          </div>
+          <div style="font-size: 0.9em; color: var(--text);">
+            <span id="uploadProgressPercent">0%</span>
+          </div>
+        </div>
+        <div style="width: 100%; height: 8px; background: var(--input-bg); border-radius: 4px; overflow: hidden;">
+          <div id="uploadProgressBar" style="height: 100%; background: var(--success); width: 0%; transition: width 0.3s ease;"></div>
+        </div>
+      </div>
 
     </div>
 
@@ -725,7 +748,7 @@
   </div>
 
   <script>
-    const APP_VERSION = 'v0.0.8';
+    const APP_VERSION = 'v0.0.9';
     const DEFAULTS = {
       company: "Nike",
       website: "nike.com",
@@ -989,26 +1012,134 @@
         previewContainer.style.visibility = 'visible';
         imageCount.textContent = imageFiles.length;
         
+        // Initialize selection state - all checked by default
+        if (!window.imageSelectionState) {
+          window.imageSelectionState = {};
+        }
+        
+        // Reset selection state for new files (all checked by default)
+        imageFiles.forEach(file => {
+          const fileKey = file.webkitRelativePath || file.name;
+          if (window.imageSelectionState[fileKey] === undefined) {
+            window.imageSelectionState[fileKey] = true; // Default checked
+          }
+        });
+        
+        // Update selected count
+        updateSelectedCount();
+        
         // Scroll preview into view
         previewContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         
-        // Build preview list
+        // Build preview list with checkboxes
         let html = '';
         imageFiles.forEach((file, index) => {
           const relativePath = file.webkitRelativePath || file.name;
+          const fileKey = relativePath;
           const fileSize = (file.size / 1024).toFixed(1); // KB
+          const isChecked = window.imageSelectionState[fileKey] !== false; // Default true
+          const checkboxId = `img_check_${index}`;
           const icon = '🖼️';
-          html += `<div style="padding: 0.25rem 0; border-bottom: 1px solid var(--border); color: var(--text);">
-            <span style="color: var(--success);">${icon}</span> ${relativePath} <span style="color: #999; font-size: 0.9em;">(${fileSize} KB)</span>
+          html += `<div style="padding: 0.25rem 0; border-bottom: 1px solid var(--border); color: var(--text); display: flex; align-items: center; gap: 0.5rem;">
+            <input type="checkbox" id="${checkboxId}" data-file-key="${fileKey}" ${isChecked ? 'checked' : ''} style="margin: 0; cursor: pointer;">
+            <label for="${checkboxId}" style="margin: 0; cursor: pointer; flex: 1;">
+              <span style="color: var(--success);">${icon}</span> ${relativePath} <span style="color: #999; font-size: 0.9em;">(${fileSize} KB)</span>
+            </label>
           </div>`;
         });
         
         previewList.innerHTML = html;
+        
+        // Add event listeners to checkboxes
+        imageFiles.forEach((file, index) => {
+          const checkboxId = `img_check_${index}`;
+          const checkbox = document.getElementById(checkboxId);
+          if (checkbox) {
+            checkbox.addEventListener('change', (e) => {
+              const fileKey = e.target.getAttribute('data-file-key');
+              window.imageSelectionState[fileKey] = e.target.checked;
+              updateSelectedCount();
+            });
+          }
+        });
         console.log('📋 [PREVIEW] Preview updated successfully:', {
           imageCount: imageFiles.length,
           previewVisible: previewContainer.style.display,
           htmlLength: html.length
         });
+      }
+      
+      // Function to update selected count display
+      function updateSelectedCount() {
+        const selectedCountEl = document.getElementById('selectedCount');
+        if (!selectedCountEl || !window.imageSelectionState) return;
+        
+        const dirInput = document.getElementById('save_dir_file');
+        if (!dirInput || !dirInput.files || dirInput.files.length === 0) {
+          selectedCountEl.textContent = '0';
+          return;
+        }
+        
+        const includeSubfoldersCheckbox = document.getElementById('include_subfolders');
+        const includeSubfolders = includeSubfoldersCheckbox ? includeSubfoldersCheckbox.checked : false;
+        const imageFiles = filterImageFiles(dirInput.files, includeSubfolders);
+        
+        let selectedCount = 0;
+        imageFiles.forEach(file => {
+          const fileKey = file.webkitRelativePath || file.name;
+          if (window.imageSelectionState[fileKey] !== false) {
+            selectedCount++;
+          }
+        });
+        
+        selectedCountEl.textContent = selectedCount;
+      }
+      
+      // Select All / Deselect All functions
+      function selectAllImages() {
+        const dirInput = document.getElementById('save_dir_file');
+        if (!dirInput || !dirInput.files || !window.imageSelectionState) return;
+        
+        const includeSubfoldersCheckbox = document.getElementById('include_subfolders');
+        const includeSubfolders = includeSubfoldersCheckbox ? includeSubfoldersCheckbox.checked : false;
+        const imageFiles = filterImageFiles(dirInput.files, includeSubfolders);
+        
+        imageFiles.forEach(file => {
+          const fileKey = file.webkitRelativePath || file.name;
+          window.imageSelectionState[fileKey] = true;
+        });
+        
+        // Update checkboxes
+        imageFiles.forEach((file, index) => {
+          const checkboxId = `img_check_${index}`;
+          const checkbox = document.getElementById(checkboxId);
+          if (checkbox) checkbox.checked = true;
+        });
+        
+        updateSelectedCount();
+      }
+      
+      function deselectAllImages() {
+        const dirInput = document.getElementById('save_dir_file');
+        if (!dirInput || !dirInput.files || !window.imageSelectionState) return;
+        
+        const includeSubfoldersCheckbox = document.getElementById('include_subfolders');
+        const includeSubfolders = includeSubfoldersCheckbox ? includeSubfoldersCheckbox.checked : false;
+        const imageFiles = filterImageFiles(dirInput.files, includeSubfolders);
+        
+        imageFiles.forEach(file => {
+          const fileKey = file.webkitRelativePath || file.name;
+          window.imageSelectionState[fileKey] = false;
+        });
+        
+        // Update checkboxes
+        imageFiles.forEach((file, index) => {
+          const checkboxId = `img_check_${index}`;
+          const checkbox = document.getElementById(checkboxId);
+          if (checkbox) checkbox.checked = false;
+        });
+        
+        updateSelectedCount();
       }
       
       // Handle directory selection - use both change and input events for maximum compatibility
@@ -1280,7 +1411,18 @@
       document.getElementById('include_subfolders').addEventListener('change', (e) => {
         console.log('☑️ [CHECKBOX] Include subfolders changed:', e.target.checked);
         updateImagePreview();
+        updateSelectedCount();
       });
+      
+      // Select All / Deselect All button handlers
+      const selectAllBtn = document.getElementById('selectAllImages');
+      const deselectAllBtn = document.getElementById('deselectAllImages');
+      if (selectAllBtn) {
+        selectAllBtn.addEventListener('click', selectAllImages);
+      }
+      if (deselectAllBtn) {
+        deselectAllBtn.addEventListener('click', deselectAllImages);
+      }
 
       document.getElementById('csv_out_file').addEventListener('change', (e) => {
         if (e.target.files.length > 0) {
@@ -1986,6 +2128,19 @@
         return;
       }
       
+      // Filter to only selected images
+      if (window.imageSelectionState) {
+        const originalCount = imageFiles.length;
+        imageFiles = imageFiles.filter(file => {
+          const fileKey = file.webkitRelativePath || file.name;
+          return window.imageSelectionState[fileKey] !== false; // Default true if not set
+        });
+        console.log('⬆️ [UPLOAD] After selection filter:', {
+          originalCount: originalCount,
+          selectedCount: imageFiles.length
+        });
+      }
+      
       console.log('⬆️ [UPLOAD] Filtered result:', {
         imageFilesCount: imageFiles.length,
         totalFiles: dirInput.files.length
@@ -2021,7 +2176,24 @@
       
       // Disable button during upload
       uploadBtn.disabled = true;
-      uploadBtn.textContent = `Uploading ${imageFiles.length} images...`;
+      const selectedCount = imageFiles.length;
+      uploadBtn.textContent = `Uploading ${selectedCount} selected images...`;
+      
+      // Show progress bar
+      const progressContainer = document.getElementById('uploadProgressContainer');
+      const progressBar = document.getElementById('uploadProgressBar');
+      const progressText = document.getElementById('uploadProgressText');
+      const progressPercent = document.getElementById('uploadProgressPercent');
+      const timeRemaining = document.getElementById('uploadTimeRemaining');
+      
+      if (progressContainer) progressContainer.style.display = 'block';
+      if (progressBar) progressBar.style.width = '0%';
+      if (progressText) progressText.textContent = `Uploading 0/${selectedCount} images...`;
+      if (progressPercent) progressPercent.textContent = '0%';
+      if (timeRemaining) timeRemaining.textContent = '';
+      
+      // Track upload times for time estimation
+      let uploadTimes = [];
       
       try {
         // Create FormData for file upload
@@ -2075,6 +2247,38 @@
         let totalDuration = 0;
         const uploadedResults = [];
         const failedResults = [];
+        let totalFiles = selectedCount;
+        
+        // Helper function to format file size
+        function formatFileSize(bytes) {
+          if (bytes < 1024) return bytes + ' B';
+          if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+          return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+        
+        // Helper function to update progress
+        function updateProgress(index, total, duration) {
+          const percent = Math.round((index / total) * 100);
+          if (progressBar) progressBar.style.width = percent + '%';
+          if (progressPercent) progressPercent.textContent = percent + '%';
+          if (progressText) progressText.textContent = `Uploading ${index}/${total} images...`;
+          
+          // Calculate estimated time remaining
+          if (uploadTimes.length > 0 && index < total) {
+            const avgTime = uploadTimes.reduce((a, b) => a + b, 0) / uploadTimes.length;
+            const remaining = total - index;
+            const estimatedSeconds = Math.round(avgTime * remaining);
+            if (timeRemaining) {
+              if (estimatedSeconds < 60) {
+                timeRemaining.textContent = `~${estimatedSeconds}s remaining`;
+              } else {
+                const minutes = Math.floor(estimatedSeconds / 60);
+                const seconds = estimatedSeconds % 60;
+                timeRemaining.textContent = `~${minutes}m ${seconds}s remaining`;
+              }
+            }
+          }
+        }
         
         while (true) {
           const { done, value } = await reader.read();
@@ -2091,6 +2295,7 @@
                 
                 switch (data.type) {
                   case 'start':
+                    totalFiles = data.total;
                     logToConsole(`Starting upload of ${data.total} images...`, 'info');
                     break;
                     
@@ -2100,26 +2305,51 @@
                     
                   case 'success':
                     uploadedCount++;
-                    totalDuration += data.duration || 0;
+                    const successDuration = data.duration || 0;
+                    uploadTimes.push(successDuration);
+                    totalDuration += successDuration;
                     uploadedResults.push(data);
-                    logToConsole(`✓ [${data.index}/${data.total}] ${data.filename} (${data.duration}s) → ${data.cloudinary_url}`, 'success');
-                    // Update button text with progress
+                    
+                    // Find file size from original file list
+                    const file = imageFiles.find(f => {
+                      const fileKey = f.webkitRelativePath || f.name;
+                      return fileKey.includes(data.filename);
+                    });
+                    const fileSize = file ? formatFileSize(file.size) : '';
+                    const sizeText = fileSize ? ` (${fileSize})` : '';
+                    
+                    logToConsole(`✓ [${data.index}/${data.total}] ${data.filename}${sizeText} (${data.duration}s) → ${data.cloudinary_url}`, 'success');
                     uploadBtn.textContent = `Uploading ${data.index}/${data.total}...`;
+                    updateProgress(data.index, data.total, successDuration);
                     break;
                     
                   case 'error':
                     failedCount++;
-                    totalDuration += data.duration || 0;
+                    const errorDuration = data.duration || 0;
+                    uploadTimes.push(errorDuration);
+                    totalDuration += errorDuration;
                     failedResults.push(data);
-                    logToConsole(`✗ [${data.index}/${data.total}] ${data.filename} (${data.duration}s): ${data.error}`, 'error');
-                    // Update button text with progress
+                    
+                    // Find file size from original file list
+                    const errorFile = imageFiles.find(f => {
+                      const fileKey = f.webkitRelativePath || f.name;
+                      return fileKey.includes(data.filename);
+                    });
+                    const errorFileSize = errorFile ? formatFileSize(errorFile.size) : '';
+                    const errorSizeText = errorFileSize ? ` (${errorFileSize})` : '';
+                    
+                    logToConsole(`✗ [${data.index}/${data.total}] ${data.filename}${errorSizeText} (${data.duration}s): ${data.error}`, 'error');
                     uploadBtn.textContent = `Uploading ${data.index}/${data.total}...`;
+                    updateProgress(data.index, data.total, errorDuration);
                     break;
                     
                   case 'complete':
-                    const failedCount = data.failed || 0;
-                    logToConsole(`✓ Upload complete: ${data.successful} successful, ${failedCount} failed (Total time: ${data.total_duration}s)`, 'success');
-                    alert(`Upload complete!\n\nSuccessful: ${data.successful}\nFailed: ${failedCount}\nTotal time: ${data.total_duration}s\n\nCheck console for details.`);
+                    const finalFailedCount = data.failed || 0;
+                    if (progressBar) progressBar.style.width = '100%';
+                    if (progressPercent) progressPercent.textContent = '100%';
+                    if (timeRemaining) timeRemaining.textContent = '';
+                    logToConsole(`✓ Upload complete: ${data.successful} successful, ${finalFailedCount} failed (Total time: ${data.total_duration}s)`, 'success');
+                    alert(`Upload complete!\n\nSuccessful: ${data.successful}\nFailed: ${finalFailedCount}\nTotal time: ${data.total_duration}s\n\nCheck console for details.`);
                     break;
                 }
               } catch (e) {
@@ -2135,6 +2365,9 @@
       } finally {
         uploadBtn.disabled = false;
         uploadBtn.textContent = 'Upload to Cloudinary';
+        // Hide progress bar
+        const progressContainer = document.getElementById('uploadProgressContainer');
+        if (progressContainer) progressContainer.style.display = 'none';
       }
     }
 
