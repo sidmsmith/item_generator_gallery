@@ -1709,31 +1709,33 @@
         }
       });
 
-      document.getElementById('item_numbers_csv').addEventListener('change', async (e) => {
+      // Reference Items file picker button
+      const referenceItemsLoadBtn = document.getElementById('referenceItemsLoadBtn');
+      const referenceItemsFileInput = document.getElementById('item_numbers_csv');
+      const referenceItemsDisplay = document.getElementById('reference_items_display');
+      
+      if (referenceItemsLoadBtn && referenceItemsFileInput) {
+        referenceItemsLoadBtn.addEventListener('click', () => {
+          referenceItemsFileInput.click();
+        });
+      }
+      
+      referenceItemsFileInput.addEventListener('change', async (e) => {
         if (!e.target.files.length) {
           referenceItems = [];
           setItemNumbersStatus('');
+          if (referenceItemsDisplay) referenceItemsDisplay.value = '';
           // Clear stored filename
           localStorage.removeItem('item_gen_reference_items_filename');
-          const hint = document.getElementById('reference_items_hint');
-          if (hint) hint.remove();
           return;
         }
         const file = e.target.files[0];
         // Store filename for persistence
         localStorage.setItem('item_gen_reference_items_filename', file.name);
-        // Update or create hint
-        let hint = document.getElementById('reference_items_hint');
-        if (!hint) {
-          hint = document.createElement('small');
-          hint.id = 'reference_items_hint';
-          hint.style.color = '#999';
-          hint.style.fontSize = '0.85em';
-          hint.style.marginLeft = '0.5rem';
-          hint.style.display = 'block';
-          e.target.parentElement.appendChild(hint);
+        // Update display textbox
+        if (referenceItemsDisplay) {
+          referenceItemsDisplay.value = file.name;
         }
-        hint.textContent = `Last used: ${file.name}`;
         referenceItems = await parseReferenceItemsFile(file);
         setItemNumbersStatus(
           referenceItems.length
