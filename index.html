@@ -678,12 +678,15 @@
       </div>
       
       <!-- Image Preview Section -->
-      <div id="imagePreviewContainer" style="display: none; margin-top: 0.5rem; margin-left: 1rem;">
-        <div style="font-size: 0.9em; color: var(--text); margin-bottom: 0.5rem;">
-          <strong>Selected Images:</strong> <span id="imageCount">0</span> file(s)
+      <div id="imagePreviewContainer" style="display: none; margin-top: 0.5rem; margin-left: 1rem; padding: 0.75rem; background: var(--input-bg); border: 2px solid var(--primary); border-radius: 6px;">
+        <div style="font-size: 0.95em; color: var(--text); margin-bottom: 0.5rem; font-weight: bold;">
+          <span style="color: var(--primary);">📁 Selected Images:</span> <span id="imageCount" style="color: var(--success);">0</span> file(s)
         </div>
         <div id="imagePreviewList" style="max-height: 200px; overflow-y: auto; background: var(--input-bg); border: 1px solid var(--border); border-radius: 4px; padding: 0.5rem; font-size: 0.85em; font-family: monospace;">
           <!-- Image list will be populated here -->
+        </div>
+        <div id="imagePreviewNote" style="font-size: 0.8em; color: #999; margin-top: 0.5rem; font-style: italic;">
+          Note: The browser may show "Upload 30 files" in the native dialog - this is normal. After confirming, the preview above shows the filtered count based on your "Include subfolders" setting.
         </div>
       </div>
 
@@ -970,7 +973,11 @@
         // Show preview
         console.log('📋 [PREVIEW] Showing preview with', imageFiles.length, 'images');
         previewContainer.style.display = 'block';
+        previewContainer.style.visibility = 'visible';
         imageCount.textContent = imageFiles.length;
+        
+        // Scroll preview into view
+        previewContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         
         // Build preview list
         let html = '';
@@ -991,53 +998,82 @@
         });
       }
       
-      document.getElementById('save_dir_file').addEventListener('change', (e) => {
-        console.log('📁 [DIRECTORY] Directory selection changed');
+      // Handle directory selection - use both change and input events for maximum compatibility
+      const dirInput = document.getElementById('save_dir_file');
+      
+      function handleDirectorySelection(e) {
+        console.log('📁 [DIRECTORY] Directory selection event fired');
+        console.log('📁 [DIRECTORY] Event type:', e.type);
+        console.log('📁 [DIRECTORY] Target:', e.target);
         console.log('📁 [DIRECTORY] Files selected:', e.target.files ? e.target.files.length : 0);
         
-        if (!e.target.files.length) {
-          console.log('📁 [DIRECTORY] No files selected, updating preview');
-          updateImagePreview();
-          return;
-        }
-        
-        const firstFile = e.target.files[0];
-        console.log('📁 [DIRECTORY] First file info:', {
-          name: firstFile.name,
-          webkitRelativePath: firstFile.webkitRelativePath || '(none)',
-          size: firstFile.size
-        });
-        
-        let dirPath = '';
-        if (firstFile.webkitRelativePath) {
-          // Extract directory path from webkitRelativePath
-          // For root files: webkitRelativePath = "filename.jpg", dirPath = ""
-          // For subfolder files: webkitRelativePath = "subfolder/filename.jpg", dirPath = "subfolder"
-          const parts = firstFile.webkitRelativePath.split('/');
-          console.log('📁 [DIRECTORY] Path parts:', parts);
-          if (parts.length > 1) {
-            parts.pop(); // Remove filename
+        // Small delay to ensure files are fully loaded
+        setTimeout(() => {
+          const files = e.target.files;
+          
+          if (!files || files.length === 0) {
+            console.log('📁 [DIRECTORY] No files selected, updating preview');
+            updateImagePreview();
+            return;
+          }
+          
+          console.log('📁 [DIRECTORY] Processing', files.length, 'files');
+          
+          const firstFile = files[0];
+          console.log('📁 [DIRECTORY] First file info:', {
+            name: firstFile.name,
+            webkitRelativePath: firstFile.webkitRelativePath || '(none)',
+            size: firstFile.size
+          });
+          
+          let dirPath = '';
+          if (firstFile.webkitRelativePath) {
+            // Extract directory path from webkitRelativePath
+            // For root files: webkitRelativePath = "filename.jpg", dirPath = ""
+            // For subfolder files: webkitRelativePath = "subfolder/filename.jpg", dirPath = "subfolder"
+            const parts = firstFile.webkitRelativePath.split('/');
+            console.log('📁 [DIRECTORY] Path parts:', parts);
+            if (parts.length > 1) {
+              parts.pop(); // Remove filename
+              dirPath = parts.join('/');
+            }
+          } else if (firstFile.path) {
+            const parts = firstFile.path.split(/[/\\]/);
+            parts.pop();
             dirPath = parts.join('/');
           }
-        } else if (firstFile.path) {
-          const parts = firstFile.path.split(/[/\\]/);
-          parts.pop();
-          dirPath = parts.join('/');
+          
+          const saveDirInput = document.getElementById('save_dir');
+          if (saveDirInput) {
+            if (dirPath) {
+              saveDirInput.value = dirPath;
+              console.log('📁 [DIRECTORY] Set directory path to:', dirPath);
+            } else {
+              // Root directory selected
+              saveDirInput.value = 'Root';
+              console.log('📁 [DIRECTORY] Root directory selected');
+            }
+          }
+          
+          // Always update preview when directory changes
+          console.log('📁 [DIRECTORY] Calling updateImagePreview() with', files.length, 'files');
+          updateImagePreview();
+        }, 100);
+      }
+      
+      // Listen to both change and input events
+      dirInput.addEventListener('change', handleDirectorySelection);
+      dirInput.addEventListener('input', handleDirectorySelection);
+      
+      // Also check periodically if files were added (fallback for some browsers)
+      let lastFileCount = 0;
+      const pollInterval = setInterval(() => {
+        if (dirInput.files && dirInput.files.length !== lastFileCount && dirInput.files.length > 0) {
+          console.log('📁 [DIRECTORY] File count changed via polling:', dirInput.files.length);
+          lastFileCount = dirInput.files.length;
+          handleDirectorySelection({ type: 'polling', target: dirInput });
         }
-        
-        if (dirPath) {
-          document.getElementById('save_dir').value = dirPath;
-          console.log('📁 [DIRECTORY] Set directory path to:', dirPath);
-        } else {
-          // Root directory selected
-          document.getElementById('save_dir').value = 'Root';
-          console.log('📁 [DIRECTORY] Root directory selected');
-        }
-        
-        // Always update preview when directory changes
-        console.log('📁 [DIRECTORY] Calling updateImagePreview()');
-        updateImagePreview();
-      });
+      }, 1000);
       
       // Update preview when subfolders checkbox changes
       document.getElementById('include_subfolders').addEventListener('change', (e) => {
