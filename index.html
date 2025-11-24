@@ -953,7 +953,7 @@
   </div>
 
   <script>
-    const APP_VERSION = 'v0.4.4';
+    const APP_VERSION = 'v0.4.5';
     const DEFAULTS = {
       company: "Nike",
       website: "nike.com",
@@ -3118,8 +3118,14 @@
         delete gallerySelections[itemId];
       } else {
         gallerySelections[itemId] = fileName;
+        // If item was skipped, uncheck the skip checkbox
+        if (gallerySkippedItems.has(itemId)) {
+          gallerySkippedItems.delete(itemId);
+        }
       }
       renderGallery();
+      updateGallerySummary();
+      updateGalleryToolbar();
     }
 
     function selectFirstVariants() {
@@ -3223,9 +3229,11 @@
 
       try {
         // Create payload for single item with 3 images
+        // Use productName (the original search term) instead of itemId
+        const productName = item.productName || item.itemId;
         const singleItemPayload = {
           ...lastGalleryPayload,
-          products: [itemId], // Only search for this one item
+          products: [productName], // Use the original product name/search term
           images_per_item: 3 // Request 3 new images
         };
 
