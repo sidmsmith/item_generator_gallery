@@ -172,8 +172,17 @@ def get_extension_from_headers(content_type, fallback=".jpg"):
     content_type = content_type.split(";")[0].strip().lower()
     return MIME_EXTENSION_MAP.get(content_type, fallback)
 
-def fetch_image_variants(product_name, item_id, sites, images_per_item, filters):
-    """Fetch image metadata for a product without writing to disk"""
+def fetch_image_variants(product_name, item_id, sites, images_per_item, filters, start=1):
+    """Fetch image metadata for a product without writing to disk
+    
+    Args:
+        product_name: Product name to search for
+        item_id: Item identifier
+        sites: List of sites to search
+        images_per_item: Number of images to fetch
+        filters: Image filter parameters
+        start: Starting index for pagination (1-based, default=1)
+    """
     site_query = " OR ".join(f"site:{s}" for s in sites) if sites else ""
     query = f"{product_name} ({site_query})" if site_query else product_name
 
@@ -182,7 +191,8 @@ def fetch_image_variants(product_name, item_id, sites, images_per_item, filters)
         "cx": CX,
         "q": query,
         "searchType": "image",
-        "num": images_per_item
+        "num": min(10, images_per_item),  # Google API max is 10 per request
+        "start": start  # Pagination: start index (1-based)
     }
     if filters:
         params.update(filters)
@@ -568,13 +578,18 @@ def download_images():
 
 @app.route('/api/gallery_generate', methods=['POST'])
 def gallery_generate():
-    """Generate gallery metadata for stateless image selection"""
+    """Generate gallery metadata for stateless image selection
+    
+    Supports pagination via 'start_index' parameter for "Add New Images" functionality.
+    If start_index is provided, it will fetch images starting from that position.
+    """
     data = request.json
     products = data.get('products', [])
     item_numbers = data.get('item_numbers', [])
     sites_str = data.get('sites', DEFAULT_SITES)
     images_per_item = int(data.get('images_per_item', DEFAULT_IMAGES_PER_ITEM))
     filter_str = data.get('image_filters', '').strip()
+    start_index = int(data.get('start_index', 1))  # For pagination (1-based)
 
     if not products:
         return jsonify({"success": False, "error": "No product names were provided."}), 400
@@ -583,7 +598,8 @@ def gallery_generate():
     if filter_error:
         return jsonify({"success": False, "error": filter_error}), 400
 
-    images_per_item = max(1, min(images_per_item, 10))
+    # Remove artificial limit - allow any number, will paginate if > 10
+    images_per_item = max(1, images_per_item)
     sites = clean_sites(sites_str)
 
     items_payload = []
@@ -594,7 +610,39 @@ def gallery_generate():
             reference_id = item_numbers[idx] if idx < len(item_numbers) else None
             item_id = reference_id or f"gallery_item_{idx + 1}"
 
-            variants, last_error = fetch_image_variants(product_name, item_id, sites, images_per_item, filters)
+            # If requesting more than 10 images, paginate through multiple API calls
+            all_variants = []
+            if images_per_item <= 10:
+                # Single API call (use start_index if provided for pagination)
+                variants, last_error = fetch_image_variants(product_name, item_id, sites, images_per_item, filters, start=start_index)
+                all_variants = variants
+            else:
+                # Multiple API calls with pagination
+                remaining = images_per_item
+                current_start = start_index
+                last_error = None
+                
+                while remaining > 0 and len(all_variants) < images_per_item:
+                    batch_size = min(10, remaining)  # Google API max is 10 per request
+                    variants, batch_error = fetch_image_variants(product_name, item_id, sites, batch_size, filters, start=current_start)
+                    
+                    if batch_error:
+                        last_error = batch_error
+                        if not variants:  # If no variants returned, stop paginating
+                            break
+                    
+                    all_variants.extend(variants)
+                    remaining -= len(variants)
+                    current_start += len(variants)
+                    
+                    # If we got fewer than requested, we've reached the end
+                    if len(variants) < batch_size:
+                        break
+                
+                # Limit to requested number
+                all_variants = all_variants[:images_per_item]
+            
+            variants = all_variants
 
             if not variants:
                 missing_items.append({
