@@ -378,6 +378,105 @@
       margin: 0;
       font-size: 1rem;
       color: #fff;
+      margin-right: auto;
+    }
+
+    .gallery-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-left: auto;
+    }
+
+    .skip-checkbox {
+      width: 20px;
+      height: 20px;
+      cursor: pointer;
+      accent-color: #ff6b6b;
+      filter: hue-rotate(0deg) saturate(1.2);
+      appearance: none;
+      -webkit-appearance: none;
+      border: 2px solid #ff6b6b;
+      border-radius: 3px;
+      background-color: transparent;
+      position: relative;
+    }
+    
+    .skip-checkbox:checked {
+      background-color: #ff6b6b;
+    }
+    
+    .skip-checkbox:checked::after {
+      content: '✓';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: white;
+      font-size: 14px;
+      font-weight: bold;
+    }
+
+    .refresh-btn {
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      padding: 0.4rem 0.6rem;
+      cursor: pointer;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+      transition: all 0.2s ease;
+    }
+
+    .refresh-btn:hover {
+      background: #333;
+      border-color: var(--primary);
+    }
+
+    .refresh-btn:active {
+      transform: scale(0.95);
+    }
+
+    .refresh-btn.loading {
+      opacity: 0.6;
+      cursor: not-allowed;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    .gallery-group.skipped {
+      opacity: 0.5;
+      background: rgba(255, 107, 107, 0.1);
+      border-color: rgba(255, 107, 107, 0.5);
+    }
+
+    .gallery-group.skipped .gallery-group-header h5 {
+      text-decoration: line-through;
+      color: #999;
+    }
+
+    .new-images-badge {
+      position: absolute;
+      top: 0.5rem;
+      right: 0.5rem;
+      background: var(--success);
+      color: white;
+      font-size: 0.7rem;
+      padding: 0.2rem 0.4rem;
+      border-radius: 4px;
+      font-weight: bold;
+      z-index: 5;
+    }
+
+    .gallery-card.new-image {
+      position: relative;
     }
 
     .gallery-item-id {
@@ -854,7 +953,7 @@
   </div>
 
   <script>
-    const APP_VERSION = 'v0.4.3';
+    const APP_VERSION = 'v0.4.4';
     const DEFAULTS = {
       company: "Nike",
       website: "nike.com",
@@ -878,6 +977,8 @@
     let itemListCollapsed = false;
     let galleryItems = [];
     let gallerySelections = {};
+    let gallerySkippedItems = new Set(); // Track skipped items
+    let galleryNewImages = new Map(); // Track new images per item: Map<itemId, Set<fileName>>
     let galleryMissingItems = [];
     let lastGalleryPayload = null;
     let galleryLoading = false;
@@ -2742,6 +2843,8 @@
 
       galleryItems = result.items || [];
       gallerySelections = {};
+      gallerySkippedItems.clear(); // Clear skipped items for new gallery
+      galleryNewImages.clear(); // Clear new images tracking for new gallery
       galleryMissingItems = result.missingItems || [];
       dlStatus.textContent = 'Gallery ready. Review and select one image per item.';
       openGalleryModal();
@@ -2771,12 +2874,59 @@
         const uniqueSources = new Set(item.variants.map(v => v.source).filter(Boolean));
         const groupSourceHtml = uniqueSources.size === 1 ? `<small class="text-muted">Source: ${Array.from(uniqueSources)[0]}</small>` : '';
         const displayTitle = item.productName || item.itemId;
-        header.innerHTML = `
-          <div>
-            <h5>${displayTitle}</h5>
-          </div>
-          <div>${groupSourceHtml}</div>
-        `;
+        const isSkipped = gallerySkippedItems.has(item.itemId);
+        
+        // Create header with item name on left
+        const titleDiv = document.createElement('div');
+        const h5 = document.createElement('h5');
+        h5.textContent = displayTitle;
+        titleDiv.appendChild(h5);
+        if (groupSourceHtml) {
+          titleDiv.innerHTML += groupSourceHtml;
+        }
+        
+        // Create controls (checkbox and refresh button) on right
+        const controlsDiv = document.createElement('div');
+        controlsDiv.className = 'gallery-controls';
+        
+        const skipCheckbox = document.createElement('input');
+        skipCheckbox.type = 'checkbox';
+        skipCheckbox.className = 'skip-checkbox';
+        skipCheckbox.checked = isSkipped;
+        skipCheckbox.title = 'Skip this item';
+        skipCheckbox.addEventListener('change', () => {
+          if (skipCheckbox.checked) {
+            gallerySkippedItems.add(item.itemId);
+            // Clear selection if item is skipped
+            delete gallerySelections[item.itemId];
+          } else {
+            gallerySkippedItems.delete(item.itemId);
+          }
+          renderGallery();
+          updateGallerySummary();
+          updateGalleryToolbar();
+        });
+        
+        const refreshBtn = document.createElement('button');
+        refreshBtn.className = 'refresh-btn';
+        refreshBtn.type = 'button';
+        refreshBtn.innerHTML = '<span>🔄</span> Add New Images';
+        refreshBtn.title = 'Add new images for this item';
+        refreshBtn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          await handleRefreshImages(item.itemId, refreshBtn);
+        });
+        
+        controlsDiv.appendChild(skipCheckbox);
+        controlsDiv.appendChild(refreshBtn);
+        
+        header.appendChild(titleDiv);
+        header.appendChild(controlsDiv);
+        
+        if (isSkipped) {
+          group.classList.add('skipped');
+        }
+        
         group.appendChild(header);
 
         if (item.variants.length === 0) {
@@ -2806,9 +2956,17 @@
           card.className = 'gallery-card';
           const isSelected = gallerySelections[item.itemId] === variant.fileName;
           if (isSelected) card.classList.add('selected');
+          
+          // Check if this is a new image
+          const isNewImage = galleryNewImages.has(item.itemId) && 
+                             galleryNewImages.get(item.itemId).has(variant.fileName);
+          
+          const newBadgeHtml = isNewImage ? '<div class="new-images-badge">NEW</div>' : '';
+          
           card.innerHTML = `
-            <div class="gallery-card-image">
+            <div class="gallery-card-image" style="position: relative;">
               <img src="${variant.previewUrl || variant.originalUrl}" alt="${variant.fileName}">
+              ${newBadgeHtml}
             </div>
             <div class="gallery-card-body">
               <div class="gallery-card-title">Variant ${idx + 1}</div>
@@ -2874,7 +3032,10 @@
 
     function updateGalleryToolbar() {
       const saveBtn = document.getElementById('gallerySaveBtn');
-      const selectableGroups = galleryItems.filter(item => item.variants.length > 0);
+      // Filter out skipped items
+      const selectableGroups = galleryItems.filter(item => 
+        item.variants.length > 0 && !gallerySkippedItems.has(item.itemId)
+      );
       const missingSelections = selectableGroups.filter(item => !gallerySelections[item.itemId]);
       saveBtn.disabled = selectableGroups.length === 0 || missingSelections.length > 0 || galleryLoading;
       document.getElementById('gallerySelectFirstBtn').disabled = galleryItems.length === 0 || galleryLoading;
@@ -2884,8 +3045,11 @@
     function updateGallerySummary() {
       const summaryEl = document.getElementById('gallerySelectionSummary');
       if (!summaryEl) return;
-      const total = galleryItems.length;
-      const selected = Object.keys(gallerySelections).length;
+      // Count only non-skipped items
+      const total = galleryItems.filter(item => !gallerySkippedItems.has(item.itemId)).length;
+      const selected = Object.keys(gallerySelections).filter(itemId => 
+        !gallerySkippedItems.has(itemId)
+      ).length;
       summaryEl.textContent = `${selected} of ${total} items selected`;
     }
 
@@ -2904,7 +3068,11 @@
         .filter(item => item.variants.length === 0)
         .map(item => getItemDisplayLabel(item.itemId));
       const groupsMissingSelections = galleryItems
-        .filter(item => item.variants.length > 0 && !gallerySelections[item.itemId])
+        .filter(item => 
+          item.variants.length > 0 && 
+          !gallerySkippedItems.has(item.itemId) && 
+          !gallerySelections[item.itemId]
+        )
         .map(item => getItemDisplayLabel(item.itemId));
 
       if (instructionEl) {
@@ -2956,6 +3124,9 @@
 
     function selectFirstVariants() {
       galleryItems.forEach(item => {
+        // Skip items that are marked as skipped
+        if (gallerySkippedItems.has(item.itemId)) return;
+        
         if (item.variants.length > 0) {
           gallerySelections[item.itemId] = item.variants[0].fileName;
         }
@@ -3020,6 +3191,8 @@
       if (result.success) {
         galleryItems = result.items || [];
         gallerySelections = {};
+        gallerySkippedItems.clear(); // Clear skipped items when refreshing
+        galleryNewImages.clear(); // Clear new images tracking when refreshing
         galleryMissingItems = result.missingItems || [];
         renderGallery();
         setGalleryStatus('Gallery refreshed');
@@ -3029,8 +3202,80 @@
       }
     }
 
+    async function handleRefreshImages(itemId, refreshBtn) {
+      if (!lastGalleryPayload) {
+        setGalleryStatus('Error: No previous gallery data available');
+        return;
+      }
+
+      const item = galleryItems.find(i => i.itemId === itemId);
+      if (!item) {
+        setGalleryStatus(`Error: Item ${itemId} not found`);
+        return;
+      }
+
+      // Get existing image file names to avoid duplicates
+      const existingFileNames = new Set(item.variants.map(v => v.fileName));
+
+      refreshBtn.classList.add('loading');
+      refreshBtn.disabled = true;
+      setGalleryStatus(`Fetching new images for ${getItemDisplayLabel(itemId)}...`);
+
+      try {
+        // Create payload for single item with 3 images
+        const singleItemPayload = {
+          ...lastGalleryPayload,
+          products: [itemId], // Only search for this one item
+          images_per_item: 3 // Request 3 new images
+        };
+
+        const result = await apiCall('gallery_generate', singleItemPayload);
+
+        if (!result.success) {
+          setGalleryStatus(`Error fetching new images: ${result.error || 'Unknown error'}`);
+          return;
+        }
+
+        const newItems = result.items || [];
+        if (newItems.length === 0 || newItems[0].itemId !== itemId) {
+          setGalleryStatus(`No new images found for ${getItemDisplayLabel(itemId)}`);
+          return;
+        }
+
+        const newVariants = newItems[0].variants || [];
+        // Filter out duplicates and add only new unique images
+        const uniqueNewVariants = newVariants.filter(v => !existingFileNames.has(v.fileName));
+
+        if (uniqueNewVariants.length === 0) {
+          setGalleryStatus(`No new unique images found for ${getItemDisplayLabel(itemId)}`);
+          return;
+        }
+
+        // Append new variants to existing ones
+        item.variants.push(...uniqueNewVariants);
+
+        // Track new images for badge display
+        if (!galleryNewImages.has(itemId)) {
+          galleryNewImages.set(itemId, new Set());
+        }
+        uniqueNewVariants.forEach(v => {
+          galleryNewImages.get(itemId).add(v.fileName);
+        });
+
+        setGalleryStatus(`Added ${uniqueNewVariants.length} new image(s) for ${getItemDisplayLabel(itemId)}`);
+        renderGallery();
+      } catch (error) {
+        setGalleryStatus(`Error: ${error.message || 'Unknown error'}`);
+      } finally {
+        refreshBtn.classList.remove('loading');
+        refreshBtn.disabled = false;
+      }
+    }
+
     function getGalleryRequiredItems() {
-      return galleryItems.filter(item => item.variants.length > 0).map(item => item.itemId);
+      return galleryItems
+        .filter(item => item.variants.length > 0 && !gallerySkippedItems.has(item.itemId))
+        .map(item => item.itemId);
     }
 
     function parseCsvToArray(csvText) {
@@ -3055,6 +3300,9 @@
 
       const selectionsPayload = [];
       galleryItems.forEach(item => {
+        // Skip items that are marked as skipped
+        if (gallerySkippedItems.has(item.itemId)) return;
+        
         const selectedFile = gallerySelections[item.itemId];
         if (!selectedFile) return;
         const variant = item.variants.find(v => v.fileName === selectedFile);
@@ -3120,6 +3368,8 @@
       showScriptModal(result.csv_filename, result.zip_filename);
       galleryItems = [];
       gallerySelections = {};
+      gallerySkippedItems.clear(); // Clear skipped items
+      galleryNewImages.clear(); // Clear new images tracking
       galleryMissingItems = [];
       closeGalleryModal();
     }
