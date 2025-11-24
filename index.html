@@ -3321,8 +3321,9 @@
           return;
         }
 
-        // Append new variants to existing ones
-        item.variants.push(...uniqueNewVariants);
+        // Append new variants to existing ones (limit to 3 as requested)
+        const variantsToAdd = uniqueNewVariants.slice(0, 3);
+        item.variants.push(...variantsToAdd);
 
         // Track new images for badge display
         if (!galleryNewImages.has(itemId)) {
