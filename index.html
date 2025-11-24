@@ -3025,9 +3025,9 @@
           // This ensures leftmost card is always fully visible
           sliderState.visible = Math.max(1, Math.min(4, Math.floor(viewportWidth / (sliderState.cardWidth + gap))));
           
-          // Max index: last position where leftmost card is fully visible
-          // We can scroll until the last card would be fully visible on the left
-          const maxIndex = Math.max(0, item.variants.length - 1); // Can scroll to show last card on left
+          // Max index: last position where we can show at least one fully visible card
+          // This ensures we can scroll to show the last card(s), but don't overscroll
+          const maxIndex = Math.max(0, item.variants.length - 1);
           
           // Clamp index to valid range
           sliderState.index = Math.min(sliderState.index, maxIndex);
@@ -3042,11 +3042,11 @@
           const needsScrolling = trackWidth > viewportClientWidth;
           const isAtStart = sliderState.index === 0;
           
-          // At end: when the last card is fully visible on the left (or we've scrolled as far as possible)
-          // Check if we can see the last card fully on the left side
-          const lastCardLeftPosition = (item.variants.length - 1) * (sliderState.cardWidth + gap);
-          const lastCardVisibleOnLeft = -sliderState.index * (sliderState.cardWidth + gap) <= lastCardLeftPosition;
-          const isAtEnd = sliderState.index >= maxIndex || (needsScrolling && lastCardVisibleOnLeft && sliderState.index >= item.variants.length - sliderState.visible);
+          // At end: when scrolling further right would show empty space or we're at the last card
+          // Check if the right edge of the viewport has reached or passed the right edge of the track
+          const currentOffset = -(sliderState.cardWidth + gap) * sliderState.index;
+          const maxOffset = viewportClientWidth - trackWidth; // Negative value when track is wider than viewport
+          const isAtEnd = !needsScrolling || currentOffset <= maxOffset || sliderState.index >= maxIndex;
           
           // Left arrow: hidden at start, visible when scrolled right
           if (isAtStart || !needsScrolling) {
