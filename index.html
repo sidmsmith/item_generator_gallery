@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Item Generator v0.5.22</title>
-  <!-- Trigger Vercel deployment sync - v0.5.22 Fix: update saved slider position BEFORE renderGallery() so new slider uses correct position -->
+  <title>Item Generator v0.5.23</title>
+  <!-- Trigger Vercel deployment sync - v0.5.23 Fix: page calculation should show last page when at maxIndex -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-TdLkn9X3yYbplwVpO6ghPEP3syyLBb4Z8RXOqfN4KVm3vIPpcPpC5XJK0A0VYHkH3VddOZXS6SmfDk5F7bP2Nw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -760,7 +760,7 @@
     </div>
   </div>
   <div class="main-card">
-    <h2>Item Generator v0.5.22</h2>
+    <h2>Item Generator v0.5.23</h2>
 
     <!-- ============================================================================= -->
     <!-- SECTION 1: GENERATE ITEMS -->
@@ -970,7 +970,7 @@
   </div>
 
   <script>
-    const APP_VERSION = 'v0.5.22';
+    const APP_VERSION = 'v0.5.23';
     const DEFAULTS = {
       company: "Nike",
       website: "nike.com",
@@ -3050,8 +3050,9 @@
           sliderState.visible = Math.max(1, Math.floor(viewportWidth / spacePerCard));
           
           // Max index: last position where we can show the last set of fully visible cards
-          // Example: 10 variants, 5 visible -> maxIndex = 5 (shows variants 5-9, all fully visible)
+          // Example: 12 variants, 5 visible -> maxIndex = 7 (shows variants 7-11, with variant 12 partially visible)
           // This ensures we can scroll to show the last card(s), but don't overscroll
+          // We want to show as many full cards as possible, so maxIndex allows showing the last "visible" number of cards
           const maxIndex = Math.max(0, item.variants.length - sliderState.visible);
           
           // Clamp index to valid range first
@@ -3113,13 +3114,29 @@
           nextBtn.disabled = isAtEnd && needsScrolling;
           
           // Update page indicator (page X of Y)
-          // Calculate current page: index 0 = page 1, index 5 = page 2, etc.
-          const currentPage = Math.floor(sliderState.index / sliderState.visible) + 1;
-          // Calculate total pages: total images divided by visible per page
+          // Calculate current page based on which variant is leftmost visible
+          // sliderState.index is the 0-based index of the leftmost visible variant
+          // Calculate total pages first
           const totalPages = needsScrolling ? Math.ceil(item.variants.length / sliderState.visible) : 1;
+          
+          // Calculate current page: index 0 = page 1, index 5 = page 2, etc.
+          // But if we're at or past maxIndex, we're on the last page
+          // Note: maxIndex is already calculated above, so we reuse it
+          let currentPage;
+          if (sliderState.index >= maxIndex) {
+            // We're at the last page (showing the last set of variants)
+            currentPage = totalPages;
+          } else {
+            // Normal calculation: floor(index / visible) + 1
+            currentPage = Math.floor(sliderState.index / sliderState.visible) + 1;
+          }
+          
+          // Clamp currentPage to valid range (safety check)
+          const clampedCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+          
           const pageIndicator = group.querySelector('.gallery-page-indicator');
           if (pageIndicator) {
-            pageIndicator.textContent = `Page ${currentPage} of ${totalPages}`;
+            pageIndicator.textContent = `Page ${clampedCurrentPage} of ${totalPages}`;
           }
         };
 
