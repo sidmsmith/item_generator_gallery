@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Item Generator v0.4.10</title>
-  <!-- Trigger Vercel deployment sync - v0.4.10 with scrollbar fix from v0.4.13 -->
+  <!-- Trigger Vercel deployment sync - v0.4.10 with scrollbar fix and selection collision fix -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-TdLkn9X3yYbplwVpO6ghPEP3syyLBb4Z8RXOqfN4KVm3vIPpcPpC5XJK0A0VYHkH3VddOZXS6SmfDk5F7bP2Nw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -2876,7 +2876,7 @@
       const grid = document.getElementById('galleryGrid');
       grid.innerHTML = '';
 
-      galleryItems.forEach(item => {
+      galleryItems.forEach((item, itemIndex) => {
         const group = document.createElement('div');
         group.className = 'gallery-group';
 
@@ -2908,8 +2908,9 @@
         skipCheckbox.addEventListener('change', () => {
           if (skipCheckbox.checked) {
             gallerySkippedItems.add(item.itemId);
-            // Clear selection if item is skipped
-            delete gallerySelections[item.itemId];
+            // Clear selection if item is skipped (use unique key)
+            const uniqueKey = getUniqueKey(itemIndex, item.itemId);
+            delete gallerySelections[uniqueKey];
           } else {
             gallerySkippedItems.delete(item.itemId);
           }
@@ -2965,10 +2966,11 @@
         item.variants.forEach((variant, idx) => {
           const card = document.createElement('div');
           card.className = 'gallery-card';
-          // Ensure we're using the correct itemId for this specific item (capture in closure)
+          // Use array index to create unique key - fixes collision when multiple items have same itemId
+          const uniqueKey = `${itemIndex}_${item.itemId}`;
           const currentItemId = item.itemId;
           const currentFileName = variant.fileName;
-          const isSelected = gallerySelections[currentItemId] === currentFileName;
+          const isSelected = gallerySelections[uniqueKey] === currentFileName;
           if (isSelected) card.classList.add('selected');
           
           // Check if this is a new image
@@ -2988,8 +2990,8 @@
             </div>
             <button class="gallery-preview-btn" type="button">Preview</button>
           `;
-          // Use captured variables to ensure correct itemId and fileName
-          card.addEventListener('click', () => toggleGallerySelection(currentItemId, currentFileName));
+          // Use unique key (itemIndex + itemId) to prevent collisions when items share same itemId
+          card.addEventListener('click', () => toggleGallerySelection(uniqueKey, currentFileName, currentItemId));
           const previewBtn = card.querySelector('.gallery-preview-btn');
           previewBtn.addEventListener('click', (ev) => {
             ev.stopPropagation();
@@ -3051,7 +3053,10 @@
       const selectableGroups = galleryItems.filter(item => 
         item.variants.length > 0 && !gallerySkippedItems.has(item.itemId)
       );
-      const missingSelections = selectableGroups.filter(item => !gallerySelections[item.itemId]);
+      const missingSelections = selectableGroups.filter((item, itemIndex) => {
+        const uniqueKey = getUniqueKey(itemIndex, item.itemId);
+        return !gallerySelections[uniqueKey];
+      });
       saveBtn.disabled = selectableGroups.length === 0 || missingSelections.length > 0 || galleryLoading;
       document.getElementById('gallerySelectFirstBtn').disabled = galleryItems.length === 0 || galleryLoading;
       document.getElementById('galleryRefreshBtn').disabled = galleryLoading;
@@ -3062,9 +3067,11 @@
       if (!summaryEl) return;
       // Count only non-skipped items
       const total = galleryItems.filter(item => !gallerySkippedItems.has(item.itemId)).length;
-      const selected = Object.keys(gallerySelections).filter(itemId => 
-        !gallerySkippedItems.has(itemId)
-      ).length;
+      // Extract itemId from uniqueKey and check if item is not skipped
+      const selected = Object.keys(gallerySelections).filter(uniqueKey => {
+        const itemId = getItemIdFromUniqueKey(uniqueKey);
+        return !gallerySkippedItems.has(itemId);
+      }).length;
       summaryEl.textContent = `${selected} of ${total} items selected`;
     }
 
@@ -3083,11 +3090,12 @@
         .filter(item => item.variants.length === 0)
         .map(item => getItemDisplayLabel(item.itemId));
       const groupsMissingSelections = galleryItems
-        .filter(item => 
-          item.variants.length > 0 && 
-          !gallerySkippedItems.has(item.itemId) && 
-          !gallerySelections[item.itemId]
-        )
+        .filter((item, itemIndex) => {
+          const uniqueKey = getUniqueKey(itemIndex, item.itemId);
+          return item.variants.length > 0 && 
+                 !gallerySkippedItems.has(item.itemId) && 
+                 !gallerySelections[uniqueKey];
+        })
         .map(item => getItemDisplayLabel(item.itemId));
 
       if (instructionEl) {
@@ -3128,14 +3136,28 @@
       }
     }
 
-    function toggleGallerySelection(itemId, fileName) {
-      if (gallerySelections[itemId] === fileName) {
-        delete gallerySelections[itemId];
+    // Helper function to create unique key from item index and itemId
+    function getUniqueKey(itemIndex, itemId) {
+      return `${itemIndex}_${itemId}`;
+    }
+    
+    // Helper function to get itemId from uniqueKey
+    // uniqueKey format: "itemIndex_itemId" (e.g., "0_ItemId" or "1_Item_Id")
+    function getItemIdFromUniqueKey(uniqueKey) {
+      const firstUnderscoreIndex = uniqueKey.indexOf('_');
+      if (firstUnderscoreIndex === -1) return uniqueKey; // Fallback if no underscore
+      return uniqueKey.substring(firstUnderscoreIndex + 1); // Return everything after first underscore
+    }
+
+    function toggleGallerySelection(uniqueKey, fileName, originalItemId) {
+      // uniqueKey is in format: "itemIndex_itemId" to prevent collisions when items share same itemId
+      if (gallerySelections[uniqueKey] === fileName) {
+        delete gallerySelections[uniqueKey];
       } else {
-        gallerySelections[itemId] = fileName;
-        // If item was skipped, uncheck the skip checkbox
-        if (gallerySkippedItems.has(itemId)) {
-          gallerySkippedItems.delete(itemId);
+        gallerySelections[uniqueKey] = fileName;
+        // If item was skipped, uncheck the skip checkbox (use originalItemId for skipped items check)
+        if (originalItemId && gallerySkippedItems.has(originalItemId)) {
+          gallerySkippedItems.delete(originalItemId);
         }
       }
       renderGallery();
@@ -3144,12 +3166,13 @@
     }
 
     function selectFirstVariants() {
-      galleryItems.forEach(item => {
+      galleryItems.forEach((item, itemIndex) => {
         // Skip items that are marked as skipped
         if (gallerySkippedItems.has(item.itemId)) return;
         
         if (item.variants.length > 0) {
-          gallerySelections[item.itemId] = item.variants[0].fileName;
+          const uniqueKey = getUniqueKey(itemIndex, item.itemId);
+          gallerySelections[uniqueKey] = item.variants[0].fileName;
         }
       });
       renderGallery();
@@ -3193,7 +3216,19 @@
       if (!carouselGroup) return;
       const variant = carouselGroup.variants[carouselIndex];
       if (!variant) return;
-      gallerySelections[carouselGroup.itemId] = variant.fileName;
+      // Find the itemIndex for carouselGroup to create unique key
+      const itemIndex = galleryItems.findIndex(item => item.itemId === carouselGroup.itemId && item === carouselGroup);
+      if (itemIndex === -1) {
+        // Fallback: search by itemId (might have duplicates, use first match)
+        const foundIndex = galleryItems.findIndex(item => item.itemId === carouselGroup.itemId);
+        if (foundIndex !== -1) {
+          const uniqueKey = getUniqueKey(foundIndex, carouselGroup.itemId);
+          gallerySelections[uniqueKey] = variant.fileName;
+        }
+      } else {
+        const uniqueKey = getUniqueKey(itemIndex, carouselGroup.itemId);
+        gallerySelections[uniqueKey] = variant.fileName;
+      }
       renderGallery();
       closeVariantCarousel();
     }
@@ -3376,8 +3411,16 @@
     }
 
     async function finalizeGallerySelections() {
-      const requiredItems = getGalleryRequiredItems();
-      const missing = requiredItems.filter(item => !gallerySelections[item]);
+      // Check for missing selections using unique keys
+      const missing = [];
+      galleryItems.forEach((item, itemIndex) => {
+        if (item.variants.length > 0 && !gallerySkippedItems.has(item.itemId)) {
+          const uniqueKey = getUniqueKey(itemIndex, item.itemId);
+          if (!gallerySelections[uniqueKey]) {
+            missing.push(item.itemId);
+          }
+        }
+      });
       if (missing.length > 0) {
         const missingLabels = missing.map(getItemDisplayLabel);
         setGalleryStatus(`Select one image for: ${missingLabels.join(', ')}`);
@@ -3391,11 +3434,12 @@
       setGalleryStatus('Finalizing selection...');
 
       const selectionsPayload = [];
-      galleryItems.forEach(item => {
+      galleryItems.forEach((item, itemIndex) => {
         // Skip items that are marked as skipped
         if (gallerySkippedItems.has(item.itemId)) return;
         
-        const selectedFile = gallerySelections[item.itemId];
+        const uniqueKey = getUniqueKey(itemIndex, item.itemId);
+        const selectedFile = gallerySelections[uniqueKey];
         if (!selectedFile) return;
         const variant = item.variants.find(v => v.fileName === selectedFile);
         if (variant) {
