@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Item Generator v0.5.24</title>
-  <!-- Trigger Vercel deployment sync - v0.5.24 Fix: align slider index to page boundaries to prevent drift -->
+  <title>Item Generator v0.5.25</title>
+  <!-- Trigger Vercel deployment sync - v0.5.25 Fix: calculate maxIndex as last page boundary to allow proper last page alignment -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-TdLkn9X3yYbplwVpO6ghPEP3syyLBb4Z8RXOqfN4KVm3vIPpcPpC5XJK0A0VYHkH3VddOZXS6SmfDk5F7bP2Nw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -760,7 +760,7 @@
     </div>
   </div>
   <div class="main-card">
-    <h2>Item Generator v0.5.24</h2>
+    <h2>Item Generator v0.5.25</h2>
 
     <!-- ============================================================================= -->
     <!-- SECTION 1: GENERATE ITEMS -->
@@ -970,7 +970,7 @@
   </div>
 
   <script>
-    const APP_VERSION = 'v0.5.24';
+    const APP_VERSION = 'v0.5.25';
     const DEFAULTS = {
       company: "Nike",
       website: "nike.com",
@@ -3049,23 +3049,21 @@
           // Remove artificial cap - let it calculate based on actual viewport width
           sliderState.visible = Math.max(1, Math.floor(viewportWidth / spacePerCard));
           
-          // Max index: last position where we can show the last set of fully visible cards
-          // Example: 12 variants, 5 visible -> maxIndex = 7 (shows variants 7-11, with variant 12 partially visible)
-          // This ensures we can scroll to show the last card(s), but don't overscroll
-          // We want to show as many full cards as possible, so maxIndex allows showing the last "visible" number of cards
-          const maxIndex = Math.max(0, item.variants.length - sliderState.visible);
+          // Max index: largest page boundary (multiple of visible) that doesn't exceed total variants
+          // Example: 18 variants, 5 visible -> last page boundary = floor(17/5)*5 = 15 (shows variants 16-18)
+          // Example: 12 variants, 5 visible -> last page boundary = floor(11/5)*5 = 10 (shows variants 11-12)
+          // This ensures the last page starts at a proper page boundary (variant 1, 6, 11, 16, etc.)
+          const lastPageBoundary = Math.floor((item.variants.length - 1) / sliderState.visible) * sliderState.visible;
+          const maxIndex = Math.max(0, lastPageBoundary);
           
           // Helper function to align index to page boundaries (multiples of visible)
           // This ensures we always show full pages (variant 1, 6, 11, etc. in leftmost position)
-          // Exception: if we're at or past maxIndex, we're on the last page and can stay there
           const alignToPageBoundary = (index, maxIdx, visible) => {
-            if (index >= maxIdx) {
-              // We're at or past the last page boundary, return maxIndex
-              return maxIdx;
-            }
             // Align to the nearest page boundary (multiple of visible)
             // Round down to ensure we don't overshoot
-            return Math.floor(index / visible) * visible;
+            let aligned = Math.floor(index / visible) * visible;
+            // Clamp to maxIndex (which is already a page boundary)
+            return Math.min(aligned, maxIdx);
           };
           
           // Clamp index to valid range first
@@ -3165,15 +3163,17 @@
           const visible = Math.max(1, Math.floor(viewportWidth / spacePerCard));
           sliderState.visible = visible; // Update visible count
           
-          // Calculate maxIndex for alignment
-          const maxIdx = Math.max(0, item.variants.length - visible);
+          // Calculate maxIndex (last page boundary) for alignment
+          const lastPageBoundary = Math.floor((item.variants.length - 1) / visible) * visible;
+          const maxIdx = Math.max(0, lastPageBoundary);
           
           // Go back by one page (visible cards), then align to page boundary
           let newIndex = Math.max(0, sliderState.index - visible);
           
           // Align to page boundary to ensure we're at variant 1, 6, 11, etc.
-          // Round down to the nearest multiple of visible
+          // Round down to the nearest multiple of visible, then clamp to maxIdx
           newIndex = Math.floor(newIndex / visible) * visible;
+          newIndex = Math.min(newIndex, maxIdx);
           
           // Ensure we don't go below 0
           sliderState.index = Math.max(0, newIndex);
@@ -3691,18 +3691,17 @@
         // Use a reasonable estimate: typically 5-6 cards fit, but we'll use 5 as a safe estimate
         const estimatedVisible = 5;
         const targetIndex = firstNewImageIndex;
-        const maxIdx = Math.max(0, item.variants.length - estimatedVisible);
+        
+        // Calculate maxIndex (last page boundary) for alignment
+        const lastPageBoundary = Math.floor((item.variants.length - 1) / estimatedVisible) * estimatedVisible;
+        const maxIdx = Math.max(0, lastPageBoundary);
         
         // Align target index to page boundary (multiple of visible) to ensure proper page alignment
         // This ensures we show variant 1, 6, 11, etc. in the leftmost position
         let finalIndex = targetIndex;
-        if (finalIndex >= maxIdx) {
-          // We're at or past the last page boundary, use maxIndex
-          finalIndex = maxIdx;
-        } else {
-          // Align to the nearest page boundary (round down to ensure we don't overshoot)
-          finalIndex = Math.floor(finalIndex / estimatedVisible) * estimatedVisible;
-        }
+        // Align to the nearest page boundary (round down to ensure we don't overshoot)
+        finalIndex = Math.floor(finalIndex / estimatedVisible) * estimatedVisible;
+        // Clamp to maxIdx (which is already a page boundary)
         finalIndex = Math.min(finalIndex, maxIdx);
         
         // Update saved position BEFORE renderGallery() so the new slider uses the correct position
@@ -3739,17 +3738,15 @@
                   const visible = Math.max(1, Math.floor(viewportWidth / spacePerCard));
                   
                   // Recalculate with accurate measurements
-                  const accurateMaxIndex = Math.max(0, item.variants.length - visible);
+                  // Calculate maxIndex (last page boundary) for alignment
+                  const lastPageBoundary = Math.floor((item.variants.length - 1) / visible) * visible;
+                  const accurateMaxIndex = Math.max(0, lastPageBoundary);
                   
                   // Align to page boundary with accurate visible count
                   let accurateFinalIndex = targetIndex;
-                  if (accurateFinalIndex >= accurateMaxIndex) {
-                    // We're at or past the last page boundary, use maxIndex
-                    accurateFinalIndex = accurateMaxIndex;
-                  } else {
-                    // Align to the nearest page boundary (round down to ensure we don't overshoot)
-                    accurateFinalIndex = Math.floor(accurateFinalIndex / visible) * visible;
-                  }
+                  // Align to the nearest page boundary (round down to ensure we don't overshoot)
+                  accurateFinalIndex = Math.floor(accurateFinalIndex / visible) * visible;
+                  // Clamp to maxIndex (which is already a page boundary)
                   accurateFinalIndex = Math.min(accurateFinalIndex, accurateMaxIndex);
                   
                   // Update saved position with accurate calculation
