@@ -1186,6 +1186,15 @@ def update_wm():
         log_to_console(f"WM Update failed: {str(e)}", "[ERROR]")
         return jsonify({"success": False, "error": str(e)})
 
+@app.route('/api/cloudinary_config', methods=['GET'])
+def cloudinary_config():
+    """Get Cloudinary configuration for client-side uploads (safe to expose)"""
+    return jsonify({
+        "success": True,
+        "cloud_name": CLOUD_NAME,
+        "upload_preset": ""  # User provides this via UI
+    })
+
 if __name__ == '__main__':
     app.run(debug=True)
 
