@@ -58,7 +58,7 @@ API_KEY_CLOUD = os.getenv("CLOUDINARY_API_KEY", "")
 API_SECRET_CLOUD = os.getenv("CLOUDINARY_API_SECRET", "")
 
 # --- Home Assistant Webhook Configuration ---
-HA_WEBHOOK_URL = "http://sidmsmith.zapto.org:8123/api/webhook/manhattan_item_generator"
+HA_WEBHOOK_URL = "http://sidmsmith.zapto.org:8123/api/webhook/manhattan_pos_items"
 
 # --- Default Values (matching Python script) ---
 DEFAULT_COMPANY = "Nike"
