@@ -3968,6 +3968,7 @@
         const payload = {
           selections: selectionsPayload,
           prefix,
+          upload_folder: document.getElementById('upload_folder').value.trim(),
           reference_items: referenceItems,
           required_items: requiredItems
         };
@@ -4202,10 +4203,14 @@
           // Always use effective preset (defaults to CLOUDINARY_DEFAULT_PRESET if not provided)
           formData.append('upload_preset', effectivePreset);
           if (uploadFolder && uploadFolder.trim() !== '') {
-            // Build public_id with folder
+            // Only set folder parameter - don't include folder in public_id to avoid duplication
             const nameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
-            formData.append('public_id', `${uploadFolder}/${nameWithoutExt}`);
+            formData.append('public_id', nameWithoutExt);
             formData.append('folder', uploadFolder);
+          } else {
+            // If no folder, still set public_id to avoid using full filename
+            const nameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
+            formData.append('public_id', nameWithoutExt);
           }
           
           // Upload to Cloudinary using their upload endpoint

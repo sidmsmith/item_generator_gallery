@@ -904,14 +904,13 @@ def upload_cloudinary():
                 
                 # Prepare upload options
                 upload_options = {}
+                # Always set public_id to just the filename (without extension)
+                # Use folder parameter separately to avoid duplication
+                name_without_ext = os.path.splitext(filename_only)[0]
+                upload_options['public_id'] = name_without_ext
                 if upload_folder:
-                    # Use folder in public_id: "folder/filename" (without extension)
-                    # Only use the filename, not any directory path
-                    name_without_ext = os.path.splitext(filename_only)[0]
-                    upload_options['public_id'] = f"{upload_folder}/{name_without_ext}"
-                else:
-                    # No folder, use just the filename without extension
-                    upload_options['public_id'] = os.path.splitext(filename_only)[0]
+                    # Set folder parameter separately - don't include in public_id
+                    upload_options['folder'] = upload_folder
                 
                 if upload_preset:
                     upload_options['upload_preset'] = upload_preset
