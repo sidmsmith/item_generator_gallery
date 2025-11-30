@@ -66,7 +66,7 @@ DEFAULT_WEBSITE = "nike.com"
 DEFAULT_COUNT = 30
 DEFAULT_SITES = "nike.com, amazon.com"
 DEFAULT_IMAGES_PER_ITEM = 3
-DEFAULT_PREFIX = "https://res.cloudinary.com/com-manh-cp/image/upload/v1752528139/sidney/"
+DEFAULT_PREFIX = "https://res.cloudinary.com/com-manh-cp/image/upload/v1752528139/"
 DEFAULT_FOLDER = "sidney"
 DEFAULT_PROFILE = ""
 DEFAULT_EXTRA_PROMPT = ""
@@ -165,6 +165,34 @@ def ensure_prefix_url(prefix):
     if not prefix:
         return ""
     return prefix if prefix.endswith("/") else f"{prefix}/"
+
+def build_clean_url_path(prefix, folder, filename):
+    """Build clean URL path: prefix/folder/filename
+    Handles cases where user might have double slashes, trailing slashes, etc.
+    """
+    if not filename:
+        return ""
+    
+    # Normalize prefix: remove trailing slashes
+    clean_prefix = (prefix or "").strip().rstrip("/")
+    
+    # Normalize folder: remove leading and trailing slashes
+    clean_folder = (folder or "").strip().strip("/")
+    
+    # Normalize filename: remove leading slashes
+    clean_filename = (filename or "").strip().lstrip("/")
+    
+    # Build path parts array (only include non-empty parts)
+    parts = []
+    if clean_prefix:
+        parts.append(clean_prefix)
+    if clean_folder:
+        parts.append(clean_folder)
+    if clean_filename:
+        parts.append(clean_filename)
+    
+    # Join with single slashes and return
+    return "/".join(parts)
 
 def get_extension_from_headers(content_type, fallback=".jpg"):
     if not content_type:
@@ -374,6 +402,7 @@ def download_images():
     sites_str = data.get('sites', DEFAULT_SITES)
     images_per_item = int(data.get('images_per_item', DEFAULT_IMAGES_PER_ITEM))
     prefix = data.get('prefix', DEFAULT_PREFIX).strip()
+    folder = data.get('upload_folder', '').strip()
     item_numbers = data.get('item_numbers', [])
     filter_str = data.get('image_filters', '').strip()
     save_dir = data.get('save_dir', '').strip()
@@ -484,7 +513,8 @@ def download_images():
                         with open(path, "wb") as f:
                             f.write(img_r.content)
 
-                        public_url = prefix + final_fn if prefix else ""
+                        # Format: prefix/folder/filename using build_clean_url_path helper
+                        public_url = build_clean_url_path(prefix, folder, final_fn)
                         item_id = item_numbers[item_counter - 1] if item_counter <= len(item_numbers) else f"ITEM{item_counter:03d}"
 
                         row = [""] * 16
@@ -692,7 +722,8 @@ def gallery_finalize():
     """Finalize gallery selections by re-downloading selected images and building CSV/ZIP"""
     data = request.json
     selections = data.get('selections', [])
-    prefix = ensure_prefix_url(data.get('prefix', '').strip())
+    prefix = data.get('prefix', '').strip()
+    folder = data.get('upload_folder', '').strip()
     reference_items = data.get('reference_items', [])
     required_items = data.get('required_items', [])
 
@@ -750,7 +781,8 @@ def gallery_finalize():
             csv_row[0] = reference_id or item_id
             csv_row[1] = short_desc
             csv_row[2] = description
-            csv_row[3] = f"{prefix}{safe_name}" if prefix else safe_name
+            # Format: prefix/folder/filename using build_clean_url_path helper
+            csv_row[3] = build_clean_url_path(prefix, folder, safe_name)
             csv_row[15] = source
             csv_rows.append(csv_row)
 
