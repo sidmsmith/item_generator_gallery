@@ -2675,6 +2675,14 @@
                                   endpoint === 'auth' ? 'Auth' :
                                   endpoint === 'generate_items' ? 'Generate Items' : endpoint;
       
+      // Track auth attempt in Statsig
+      if (endpoint === 'auth' && window.StatsigTracking && window.StatsigTracking.isInitialized()) {
+        window.StatsigTracking.logEvent('auth_attempt', {
+          org: data?.org || 'unknown',
+          timestamp: new Date().toISOString()
+        });
+      }
+      
       try {
         logToConsole(`Calling ${endpointDisplayName}...`, 'info');
         const response = await fetch(`/api/${endpoint}`, {
@@ -2684,15 +2692,41 @@
         });
         const result = await response.json();
         if (result.success) {
+          // Track auth success in Statsig
+          if (endpoint === 'auth' && window.StatsigTracking && window.StatsigTracking.isInitialized()) {
+            window.StatsigTracking.logEvent('auth_success', {
+              org: data?.org || 'unknown',
+              timestamp: new Date().toISOString()
+            });
+          }
+          
           // Don't log generic success for update_wm - handleWmUpdate will log detailed summary
           if (endpoint !== 'update_wm') {
             logToConsole(`${endpointDisplayName} Succeeded`, 'success');
           }
         } else {
+          // Track auth failure in Statsig
+          if (endpoint === 'auth' && window.StatsigTracking && window.StatsigTracking.isInitialized()) {
+            window.StatsigTracking.logEvent('auth_failed', {
+              org: data?.org || 'unknown',
+              error: result.error || 'Auth failed',
+              timestamp: new Date().toISOString()
+            });
+          }
+          
           logToConsole(`${endpointDisplayName} failed: ${result.error}`, 'error');
         }
         return result;
       } catch (error) {
+        // Track auth failure in Statsig
+        if (endpoint === 'auth' && window.StatsigTracking && window.StatsigTracking.isInitialized()) {
+          window.StatsigTracking.logEvent('auth_failed', {
+            org: data?.org || 'unknown',
+            error: error.message || 'Auth error',
+            timestamp: new Date().toISOString()
+          });
+        }
+        
         logToConsole(`${endpointDisplayName} error: ${error.message}`, 'error');
         return { success: false, error: error.message };
       }
@@ -2719,6 +2753,15 @@
       }
       const extra_prompt = document.getElementById('extra_prompt').value.trim();
 
+      // Track generate attempt in Statsig
+      if (window.StatsigTracking && window.StatsigTracking.isInitialized()) {
+        window.StatsigTracking.logEvent('generate_items_attempt', {
+          company: company || 'unknown',
+          count: String(count),
+          timestamp: new Date().toISOString()
+        });
+      }
+
       const genBtn = document.getElementById('genBtn');
       const genProgress = document.getElementById('genProgress');
       const genStatus = document.getElementById('genStatus');
@@ -2734,6 +2777,17 @@
 
       if (!result.success) {
         genStatus.textContent = `Error: ${result.error}`;
+        
+        // Track generate failure in Statsig
+        if (window.StatsigTracking && window.StatsigTracking.isInitialized()) {
+          window.StatsigTracking.logEvent('generate_items_failed', {
+            company: company || 'unknown',
+            count: String(count),
+            error: result.error || 'Generate failed',
+            timestamp: new Date().toISOString()
+          });
+        }
+        
         return;
       }
 
@@ -2742,6 +2796,15 @@
       setItemList(result.products, `${result.products.length} generated items ready for gallery.`, true);
 
       genStatus.textContent = `Generated ${result.count} products successfully!`;
+      
+      // Track generate success in Statsig
+      if (window.StatsigTracking && window.StatsigTracking.isInitialized()) {
+        window.StatsigTracking.logEvent('generate_items_completed', {
+          company: company || 'unknown',
+          count: String(result.count || count),
+          timestamp: new Date().toISOString()
+        });
+      }
     }
 
     function getSearchSource() {
@@ -2865,6 +2928,15 @@
       dlProgress.style.display = 'block';
       dlStatus.textContent = 'Preparing gallery...';
 
+      // Track gallery generate attempt in Statsig
+      if (window.StatsigTracking && window.StatsigTracking.isInitialized()) {
+        window.StatsigTracking.logEvent('gallery_generate_attempt', {
+          items_count: String(productsForSearch.length),
+          images_per_item: String(images_per_item),
+          timestamp: new Date().toISOString()
+        });
+      }
+
       const result = await apiCall('gallery_generate', lastGalleryPayload);
 
       dlBtn.disabled = false;
@@ -2872,7 +2944,27 @@
 
       if (!result.success) {
         dlStatus.textContent = `Error: ${result.error || 'Unable to generate gallery'}`;
+        
+        // Track gallery generate failure in Statsig
+        if (window.StatsigTracking && window.StatsigTracking.isInitialized()) {
+          window.StatsigTracking.logEvent('gallery_generate_failed', {
+            items_count: String(productsForSearch.length),
+            images_per_item: String(images_per_item),
+            error: result.error || 'Gallery generate failed',
+            timestamp: new Date().toISOString()
+          });
+        }
+        
         return;
+      }
+      
+      // Track gallery generate success in Statsig
+      if (window.StatsigTracking && window.StatsigTracking.isInitialized()) {
+        window.StatsigTracking.logEvent('gallery_generate_completed', {
+          items_count: String(result.items?.length || productsForSearch.length),
+          images_per_item: String(images_per_item),
+          timestamp: new Date().toISOString()
+        });
       }
 
       galleryItems = result.items || [];
@@ -3973,11 +4065,38 @@
           required_items: requiredItems
         };
 
+        // Track gallery finalize attempt in Statsig
+        if (window.StatsigTracking && window.StatsigTracking.isInitialized()) {
+          window.StatsigTracking.logEvent('gallery_finalize_attempt', {
+            selections_count: String(selectionsPayload.length),
+            timestamp: new Date().toISOString()
+          });
+        }
+
         const result = await apiCall('gallery_finalize', payload);
 
         if (!result.success) {
           setGalleryStatus(`Error finalizing: ${result.error || 'Unknown error'}`);
+          
+          // Track gallery finalize failure in Statsig
+          if (window.StatsigTracking && window.StatsigTracking.isInitialized()) {
+            window.StatsigTracking.logEvent('gallery_finalize_failed', {
+              selections_count: String(selectionsPayload.length),
+              error: result.error || 'Unknown error',
+              timestamp: new Date().toISOString()
+            });
+          }
+          
           return;
+        }
+        
+        // Track gallery finalize success in Statsig
+        if (window.StatsigTracking && window.StatsigTracking.isInitialized()) {
+          window.StatsigTracking.logEvent('gallery_finalize_completed', {
+            selections_count: String(selectionsPayload.length),
+            row_count: String(result.row_count || 0),
+            timestamp: new Date().toISOString()
+          });
         }
 
         // Generate timestamp in YYMMDD-HHMM format for fallback filenames
@@ -4291,14 +4410,45 @@
       const uploadFolder = document.getElementById('upload_folder').value.trim();
       const uploadPreset = document.getElementById('upload_profile').value.trim();
       
+      // Track upload attempt in Statsig (from gallery)
+      if (window.StatsigTracking && window.StatsigTracking.isInitialized()) {
+        window.StatsigTracking.logEvent('upload_cloudinary_attempt', {
+          source: 'gallery',
+          images_count: String(imageFiles.length),
+          upload_folder: uploadFolder,
+          timestamp: new Date().toISOString()
+        });
+      }
+      
       try {
         const result = await uploadToCloudinaryDirect(imageFiles, uploadFolder, uploadPreset);
+        
+        // Track upload success in Statsig (from gallery)
+        if (window.StatsigTracking && window.StatsigTracking.isInitialized()) {
+          window.StatsigTracking.logEvent('upload_cloudinary_completed', {
+            source: 'gallery',
+            successful: String(result.successful),
+            failed: String(result.failed),
+            total: String(result.total),
+            total_duration: String(result.total_duration),
+            timestamp: new Date().toISOString()
+          });
+        }
         
         // Show completion message
         setGalleryStatus(`Upload complete: ${result.successful} successful, ${result.failed} failed`);
         alert(`Upload complete!\n\nSuccessful: ${result.successful}\nFailed: ${result.failed}\nTotal time: ${result.total_duration}s\n\nCheck console for details.`);
         
       } catch (error) {
+        // Track upload failure in Statsig (from gallery)
+        if (window.StatsigTracking && window.StatsigTracking.isInitialized()) {
+          window.StatsigTracking.logEvent('upload_cloudinary_failed', {
+            source: 'gallery',
+            error: error.message || 'Unknown error',
+            timestamp: new Date().toISOString()
+          });
+        }
+        
         logToConsole(`[CLOUDINARY] Upload error: ${error.message}`, 'error');
         logToConsole(`[CLOUDINARY] Error stack: ${error.stack || 'N/A'}`, 'error');
         logToConsole(`[CLOUDINARY] Error name: ${error.name || 'N/A'}`, 'error');
@@ -4414,13 +4564,44 @@
       const selectedCount = imageFiles.length;
       uploadBtn.textContent = `Uploading ${selectedCount} selected images...`;
       
+      // Track upload attempt in Statsig
+      if (window.StatsigTracking && window.StatsigTracking.isInitialized()) {
+        window.StatsigTracking.logEvent('upload_cloudinary_attempt', {
+          source: 'main_screen',
+          images_count: String(imageFiles.length),
+          upload_folder: uploadFolder,
+          timestamp: new Date().toISOString()
+        });
+      }
+      
       try {
         const result = await uploadToCloudinaryDirect(imageFiles, uploadFolder, uploadPreset);
+        
+        // Track upload success in Statsig
+        if (window.StatsigTracking && window.StatsigTracking.isInitialized()) {
+          window.StatsigTracking.logEvent('upload_cloudinary_completed', {
+            source: 'main_screen',
+            successful: String(result.successful),
+            failed: String(result.failed),
+            total: String(result.total),
+            total_duration: String(result.total_duration),
+            timestamp: new Date().toISOString()
+          });
+        }
         
         // Show completion message
         alert(`Upload complete!\n\nSuccessful: ${result.successful}\nFailed: ${result.failed}\nTotal time: ${result.total_duration}s\n\nCheck console for details.`);
         
       } catch (error) {
+        // Track upload failure in Statsig
+        if (window.StatsigTracking && window.StatsigTracking.isInitialized()) {
+          window.StatsigTracking.logEvent('upload_cloudinary_failed', {
+            source: 'main_screen',
+            error: error.message || 'Unknown error',
+            timestamp: new Date().toISOString()
+          });
+        }
+        
         logToConsole(`[CLOUDINARY] Upload error: ${error.message}`, 'error');
         logToConsole(`[CLOUDINARY] Error stack: ${error.stack || 'N/A'}`, 'error');
         logToConsole(`[CLOUDINARY] Error name: ${error.name || 'N/A'}`, 'error');
@@ -4543,6 +4724,15 @@
       }
       logToConsole(`Update WM: Calling API with ${rowCount} item(s)${itemDescriptions}`, 'info');
 
+      // Track update WM attempt in Statsig
+      if (window.StatsigTracking && window.StatsigTracking.isInitialized()) {
+        window.StatsigTracking.logEvent('update_wm_attempt', {
+          org: org || 'unknown',
+          item_count: String(rowCount),
+          timestamp: new Date().toISOString()
+        });
+      }
+
       // Show visual indicator
       wmBtn.disabled = true;
       wmBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Updating...';
@@ -4560,15 +4750,46 @@
           logToConsole(`Update WM succeeded - ${summary}`, 'success');
           alert(`WM Update Complete!\n\nTotal: ${result.total}\nSuccess: ${result.success_count}\nFailed: ${result.failed_count}`);
           dlStatus.textContent = `WM Update complete: ${result.success_count}/${result.total} successful`;
+          
+          // Track update WM success in Statsig
+          if (window.StatsigTracking && window.StatsigTracking.isInitialized()) {
+            window.StatsigTracking.logEvent('update_wm_completed', {
+              org: org || 'unknown',
+              total: String(result.total || 0),
+              success_count: String(result.success_count || 0),
+              failed_count: String(result.failed_count || 0),
+              timestamp: new Date().toISOString()
+            });
+          }
         } else {
           logToConsole(`Update WM failed: ${result.error}`, 'error');
           alert(`WM Update failed: ${result.error}`);
           dlStatus.textContent = `Error: ${result.error}`;
+          
+          // Track update WM failure in Statsig
+          if (window.StatsigTracking && window.StatsigTracking.isInitialized()) {
+            window.StatsigTracking.logEvent('update_wm_failed', {
+              org: org || 'unknown',
+              item_count: String(rowCount),
+              error: result.error || 'Update WM failed',
+              timestamp: new Date().toISOString()
+            });
+          }
         }
       } catch (error) {
         logToConsole(`Update WM error: ${error.message}`, 'error');
         alert(`WM Update failed: ${error.message}`);
         dlStatus.textContent = `Error: ${error.message}`;
+        
+        // Track update WM failure in Statsig
+        if (window.StatsigTracking && window.StatsigTracking.isInitialized()) {
+          window.StatsigTracking.logEvent('update_wm_failed', {
+            org: org || 'unknown',
+            item_count: String(rowCount),
+            error: error.message || 'Update WM error',
+            timestamp: new Date().toISOString()
+          });
+        }
       } finally {
         wmBtn.disabled = false;
         wmBtn.innerHTML = 'Update WM';
@@ -4720,6 +4941,20 @@
     });
 
 
+  </script>
+  <!-- Statsig Analytics -->
+  <script src="statsig.js"></script>
+  <!-- Vercel Analytics -->
+  <script>
+    (function() {
+      const script = document.createElement('script');
+      script.src = '/_vercel/insights/script.js';
+      script.defer = true;
+      script.onerror = function() {
+        console.warn('Vercel Analytics script failed to load. Make sure Analytics is enabled in Vercel dashboard and the app is redeployed.');
+      };
+      document.head.appendChild(script);
+    })();
   </script>
 </body>
 </html>

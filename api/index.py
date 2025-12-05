@@ -1,5 +1,5 @@
 # api/index.py
-from flask import Flask, request, jsonify, send_file, Response, stream_with_context
+from flask import Flask, request, jsonify, send_file, Response, stream_with_context, send_from_directory
 import json
 import os
 import requests
@@ -1225,6 +1225,34 @@ def cloudinary_config():
         "cloud_name": CLOUD_NAME,
         "upload_preset": ""  # User provides this via UI
     })
+
+@app.route('/api/statsig-config', methods=['GET'])
+def statsig_config():
+    """Provide Statsig Client SDK Key to client-side code"""
+    client_key = os.getenv('STATSIG_CLIENT_KEY')
+    if client_key:
+        return jsonify({"key": client_key})
+    else:
+        return jsonify({
+            "error": "STATSIG_CLIENT_KEY not configured",
+            "note": "Please set STATSIG_CLIENT_KEY environment variable in Vercel project settings. The key should start with 'client-'"
+        }), 200  # Return 200 so client can handle gracefully
+
+@app.route('/statsig-js-client.min.js', methods=['GET'])
+def serve_statsig_sdk():
+    """Serve Statsig SDK JavaScript file"""
+    sdk_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'statsig-js-client.min.js')
+    if os.path.exists(sdk_path):
+        return send_from_directory(os.path.dirname(os.path.dirname(__file__)), 'statsig-js-client.min.js', mimetype='application/javascript')
+    return jsonify({'error': 'SDK file not found'}), 404
+
+@app.route('/statsig.js', methods=['GET'])
+def serve_statsig_js():
+    """Serve Statsig integration JavaScript file"""
+    statsig_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'statsig.js')
+    if os.path.exists(statsig_path):
+        return send_from_directory(os.path.dirname(os.path.dirname(__file__)), 'statsig.js', mimetype='application/javascript')
+    return jsonify({'error': 'Statsig script not found'}), 404
 
 if __name__ == '__main__':
     app.run(debug=True)
