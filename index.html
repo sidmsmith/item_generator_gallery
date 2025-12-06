@@ -958,6 +958,117 @@
   </div>
 
   <script>
+    // --- Generic Metadata Collection ---
+    let sessionId = sessionStorage.getItem('session_id');
+    if (!sessionId) {
+      sessionId = 'sess_' + Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
+      sessionStorage.setItem('session_id', sessionId);
+    }
+    const pageLoadTime = new Date().toISOString();
+    let authAttemptCount = 0;
+    let firstAuthSuccess = true;
+
+    // Browser detection helpers
+    function getBrowserName() {
+      const ua = navigator.userAgent;
+      if (ua.includes('Firefox')) return 'Firefox';
+      if (ua.includes('Chrome') && !ua.includes('Edg')) return 'Chrome';
+      if (ua.includes('Safari') && !ua.includes('Chrome')) return 'Safari';
+      if (ua.includes('Edg')) return 'Edge';
+      return 'Unknown';
+    }
+
+    function getBrowserVersion() {
+      const ua = navigator.userAgent;
+      const match = ua.match(/(?:Firefox|Chrome|Safari|Edg)\/(\d+)/);
+      return match ? match[1] : 'Unknown';
+    }
+
+    function getDeviceType() {
+      const ua = navigator.userAgent;
+      if (/tablet|ipad|playbook|silk/i.test(ua)) return 'Tablet';
+      if (/mobile|iphone|ipod|android|blackberry|opera|mini|windows\sce|palm|smartphone|iemobile/i.test(ua)) return 'Mobile';
+      return 'Desktop';
+    }
+
+    function getOSName() {
+      const ua = navigator.userAgent;
+      if (ua.includes('Windows')) return 'Windows';
+      if (ua.includes('Mac')) return 'macOS';
+      if (ua.includes('Linux')) return 'Linux';
+      if (ua.includes('Android')) return 'Android';
+      if (ua.includes('iOS')) return 'iOS';
+      return 'Unknown';
+    }
+
+    function getOSVersion() {
+      const ua = navigator.userAgent;
+      const match = ua.match(/(?:Windows NT|Mac OS X|Linux|Android|iOS)\s*([\d._]+)/);
+      return match ? match[1] : 'Unknown';
+    }
+
+    function getCommonMetadata(eventSpecificMetadata = {}) {
+      const appName = document.title.split(' v')[0] || 'Item Generator';
+      const appVersionMatch = document.title.match(/v(\d+\.\d+\.\d+)/i);
+      const appVersion = appVersionMatch ? appVersionMatch[1] : '0.7.1';
+      
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlParamsObj = {};
+      for (const [key, value] of urlParams.entries()) {
+        urlParamsObj[key] = value;
+      }
+      const urlOrg = urlParams.get('Organization');
+
+      const metadata = {
+        app_name: appName,
+        app_version: appVersion,
+        timestamp: new Date().toISOString(),
+        session_id: sessionId,
+        page_load_time: pageLoadTime,
+        time_on_page_seconds: Math.floor((Date.now() - new Date(pageLoadTime).getTime()) / 1000),
+        user_agent: navigator.userAgent,
+        browser_name: getBrowserName(),
+        browser_version: getBrowserVersion(),
+        device_type: getDeviceType(),
+        os_name: getOSName(),
+        os_version: getOSVersion(),
+        screen_resolution: `${window.screen.width}x${window.screen.height}`,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        language: navigator.language,
+        referrer: document.referrer,
+        url_params: urlParamsObj,
+        auto_authenticated: !!urlOrg,
+        request_origin: window.location.origin,
+        ...eventSpecificMetadata
+      };
+
+      // Add auth-specific metadata if available
+      if (metadata.event_name && metadata.event_name.startsWith('auth_')) {
+        metadata.auth_method = urlOrg ? 'url_param' : 'manual';
+        metadata.auth_attempt_count = authAttemptCount;
+        metadata.first_auth_success = firstAuthSuccess;
+      }
+
+      return metadata;
+    }
+
+    // Home Assistant tracking helper
+    async function trackEvent(eventName, metadata = {}) {
+      try {
+        await fetch('/api/ha-track', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            event_name: eventName,
+            metadata: getCommonMetadata(metadata)
+          })
+        });
+      } catch (error) {
+        // Silently fail - don't interrupt user experience
+        console.warn('[HA] Failed to track event:', error);
+      }
+    }
+
     const APP_VERSION = 'v0.7.1';
     const DEFAULTS = {
       company: "Nike",
@@ -2675,11 +2786,14 @@
                                   endpoint === 'auth' ? 'Auth' :
                                   endpoint === 'generate_items' ? 'Generate Items' : endpoint;
       
-      // Track auth attempt in Statsig
-      if (endpoint === 'auth' && window.StatsigTracking && window.StatsigTracking.isInitialized()) {
-        window.StatsigTracking.logEvent('auth_attempt', {
+      // Track auth attempt
+      let authStartTime = null;
+      if (endpoint === 'auth') {
+        authAttemptCount++;
+        authStartTime = Date.now();
+        trackEvent('auth_attempt', {
           org: data?.org || 'unknown',
-          timestamp: new Date().toISOString()
+          url_org: new URLSearchParams(window.location.search).get('Organization') || null
         });
       }
       
@@ -2692,12 +2806,18 @@
         });
         const result = await response.json();
         if (result.success) {
-          // Track auth success in Statsig
-          if (endpoint === 'auth' && window.StatsigTracking && window.StatsigTracking.isInitialized()) {
-            window.StatsigTracking.logEvent('auth_success', {
+          // Track auth success
+          if (endpoint === 'auth' && authStartTime !== null) {
+            const authDuration = Date.now() - authStartTime;
+            trackEvent('auth_success', {
               org: data?.org || 'unknown',
-              timestamp: new Date().toISOString()
+              auth_duration_ms: authDuration,
+              token_received: !!result.token,
+              url_org: new URLSearchParams(window.location.search).get('Organization') || null
             });
+            if (firstAuthSuccess) {
+              firstAuthSuccess = false;
+            }
           }
           
           // Don't log generic success for update_wm - handleWmUpdate will log detailed summary
@@ -2705,12 +2825,15 @@
             logToConsole(`${endpointDisplayName} Succeeded`, 'success');
           }
         } else {
-          // Track auth failure in Statsig
-          if (endpoint === 'auth' && window.StatsigTracking && window.StatsigTracking.isInitialized()) {
-            window.StatsigTracking.logEvent('auth_failed', {
+          // Track auth failure
+          if (endpoint === 'auth' && authStartTime !== null) {
+            const authDuration = Date.now() - authStartTime;
+            trackEvent('auth_failed', {
               org: data?.org || 'unknown',
               error: result.error || 'Auth failed',
-              timestamp: new Date().toISOString()
+              auth_duration_ms: authDuration,
+              token_received: false,
+              url_org: new URLSearchParams(window.location.search).get('Organization') || null
             });
           }
           
@@ -2718,12 +2841,15 @@
         }
         return result;
       } catch (error) {
-        // Track auth failure in Statsig
-        if (endpoint === 'auth' && window.StatsigTracking && window.StatsigTracking.isInitialized()) {
-          window.StatsigTracking.logEvent('auth_failed', {
+        // Track auth failure
+        if (endpoint === 'auth' && authStartTime !== null) {
+          const authDuration = Date.now() - authStartTime;
+          trackEvent('auth_failed', {
             org: data?.org || 'unknown',
             error: error.message || 'Auth error',
-            timestamp: new Date().toISOString()
+            auth_duration_ms: authDuration,
+            token_received: false,
+            url_org: new URLSearchParams(window.location.search).get('Organization') || null
           });
         }
         
@@ -2753,14 +2879,14 @@
       }
       const extra_prompt = document.getElementById('extra_prompt').value.trim();
 
-      // Track generate attempt in Statsig
-      if (window.StatsigTracking && window.StatsigTracking.isInitialized()) {
-        window.StatsigTracking.logEvent('generate_items_attempt', {
-          company: company || 'unknown',
-          count: String(count),
-          timestamp: new Date().toISOString()
-        });
-      }
+      // Track generate attempt
+      const generateStartTime = Date.now();
+      await trackEvent('generate_items_attempt', {
+        company: company || 'unknown',
+        website: website || '',
+        count: count,
+        extra_prompt: extra_prompt || ''
+      });
 
       const genBtn = document.getElementById('genBtn');
       const genProgress = document.getElementById('genProgress');
@@ -2775,18 +2901,20 @@
       genBtn.disabled = false;
       genProgress.style.display = 'none';
 
+      const generateDuration = Date.now() - generateStartTime;
+      
       if (!result.success) {
         genStatus.textContent = `Error: ${result.error}`;
         
-        // Track generate failure in Statsig
-        if (window.StatsigTracking && window.StatsigTracking.isInitialized()) {
-          window.StatsigTracking.logEvent('generate_items_failed', {
-            company: company || 'unknown',
-            count: String(count),
-            error: result.error || 'Generate failed',
-            timestamp: new Date().toISOString()
-          });
-        }
+        // Track generate failure
+        await trackEvent('generate_items_failed', {
+          company: company || 'unknown',
+          website: website || '',
+          count: count,
+          extra_prompt: extra_prompt || '',
+          error: result.error || 'Generate failed',
+          generation_duration_ms: generateDuration
+        });
         
         return;
       }
@@ -2797,14 +2925,15 @@
 
       genStatus.textContent = `Generated ${result.count} products successfully!`;
       
-      // Track generate success in Statsig
-      if (window.StatsigTracking && window.StatsigTracking.isInitialized()) {
-        window.StatsigTracking.logEvent('generate_items_completed', {
-          company: company || 'unknown',
-          count: String(result.count || count),
-          timestamp: new Date().toISOString()
-        });
-      }
+      // Track generate success
+      await trackEvent('generate_items_completed', {
+        company: company || 'unknown',
+        website: website || '',
+        count: result.count || count,
+        extra_prompt: extra_prompt || '',
+        generated_count: result.products?.length || 0,
+        generation_duration_ms: generateDuration
+      });
     }
 
     function getSearchSource() {
@@ -2928,44 +3057,54 @@
       dlProgress.style.display = 'block';
       dlStatus.textContent = 'Preparing gallery...';
 
-      // Track gallery generate attempt in Statsig
-      if (window.StatsigTracking && window.StatsigTracking.isInitialized()) {
-        window.StatsigTracking.logEvent('gallery_generate_attempt', {
-          items_count: String(productsForSearch.length),
-          images_per_item: String(images_per_item),
-          timestamp: new Date().toISOString()
-        });
-      }
+      // Track gallery generate attempt
+      const galleryStartTime = Date.now();
+      await trackEvent('gallery_generate_attempt', {
+        items_count: productsForSearch.length,
+        images_per_item: images_per_item,
+        sites: sites || '',
+        prefix: prefix || '',
+        image_filters: filter_str || '',
+        reference_items_count: referenceItems.length
+      });
 
       const result = await apiCall('gallery_generate', lastGalleryPayload);
 
       dlBtn.disabled = false;
       dlProgress.style.display = 'none';
 
+      const galleryDuration = Date.now() - galleryStartTime;
+      
       if (!result.success) {
         dlStatus.textContent = `Error: ${result.error || 'Unable to generate gallery'}`;
         
-        // Track gallery generate failure in Statsig
-        if (window.StatsigTracking && window.StatsigTracking.isInitialized()) {
-          window.StatsigTracking.logEvent('gallery_generate_failed', {
-            items_count: String(productsForSearch.length),
-            images_per_item: String(images_per_item),
-            error: result.error || 'Gallery generate failed',
-            timestamp: new Date().toISOString()
-          });
-        }
+        // Track gallery generate failure
+        await trackEvent('gallery_generate_failed', {
+          items_count: productsForSearch.length,
+          images_per_item: images_per_item,
+          sites: sites || '',
+          prefix: prefix || '',
+          image_filters: filter_str || '',
+          reference_items_count: referenceItems.length,
+          error: result.error || 'Gallery generate failed',
+          generation_duration_ms: galleryDuration
+        });
         
         return;
       }
       
-      // Track gallery generate success in Statsig
-      if (window.StatsigTracking && window.StatsigTracking.isInitialized()) {
-        window.StatsigTracking.logEvent('gallery_generate_completed', {
-          items_count: String(result.items?.length || productsForSearch.length),
-          images_per_item: String(images_per_item),
-          timestamp: new Date().toISOString()
-        });
-      }
+      // Track gallery generate success
+      await trackEvent('gallery_generate_completed', {
+        items_count: productsForSearch.length,
+        images_per_item: images_per_item,
+        sites: sites || '',
+        prefix: prefix || '',
+        image_filters: filter_str || '',
+        reference_items_count: referenceItems.length,
+        gallery_items_count: result.items?.length || 0,
+        missing_items_count: result.missingItems?.length || 0,
+        generation_duration_ms: galleryDuration
+      });
 
       galleryItems = result.items || [];
       gallerySelections = {};
@@ -4065,39 +4204,46 @@
           required_items: requiredItems
         };
 
-        // Track gallery finalize attempt in Statsig
-        if (window.StatsigTracking && window.StatsigTracking.isInitialized()) {
-          window.StatsigTracking.logEvent('gallery_finalize_attempt', {
-            selections_count: String(selectionsPayload.length),
-            timestamp: new Date().toISOString()
-          });
-        }
+        // Track gallery finalize attempt
+        const finalizeStartTime = Date.now();
+        const requiredItems = getGalleryRequiredItems();
+        await trackEvent('gallery_finalize_attempt', {
+          selections_count: selectionsPayload.length,
+          skipped_items_count: gallerySkippedItems.size,
+          prefix: prefix || '',
+          upload_folder: document.getElementById('upload_folder').value.trim() || '',
+          reference_items_count: referenceItems.length
+        });
 
         const result = await apiCall('gallery_finalize', payload);
 
+        const finalizeDuration = Date.now() - finalizeStartTime;
+        
         if (!result.success) {
           setGalleryStatus(`Error finalizing: ${result.error || 'Unknown error'}`);
           
-          // Track gallery finalize failure in Statsig
-          if (window.StatsigTracking && window.StatsigTracking.isInitialized()) {
-            window.StatsigTracking.logEvent('gallery_finalize_failed', {
-              selections_count: String(selectionsPayload.length),
-              error: result.error || 'Unknown error',
-              timestamp: new Date().toISOString()
-            });
-          }
+          // Track gallery finalize failure
+          await trackEvent('gallery_finalize_failed', {
+            selections_count: selectionsPayload.length,
+            skipped_items_count: gallerySkippedItems.size,
+            prefix: prefix || '',
+            upload_folder: document.getElementById('upload_folder').value.trim() || '',
+            error: result.error || 'Unknown error',
+            finalize_duration_ms: finalizeDuration
+          });
           
           return;
         }
         
-        // Track gallery finalize success in Statsig
-        if (window.StatsigTracking && window.StatsigTracking.isInitialized()) {
-          window.StatsigTracking.logEvent('gallery_finalize_completed', {
-            selections_count: String(selectionsPayload.length),
-            row_count: String(result.row_count || 0),
-            timestamp: new Date().toISOString()
-          });
-        }
+        // Track gallery finalize success
+        await trackEvent('gallery_finalize_completed', {
+          selections_count: selectionsPayload.length,
+          skipped_items_count: gallerySkippedItems.size,
+          row_count: result.row_count || 0,
+          prefix: prefix || '',
+          upload_folder: document.getElementById('upload_folder').value.trim() || '',
+          finalize_duration_ms: finalizeDuration
+        });
 
         // Generate timestamp in YYMMDD-HHMM format for fallback filenames
         const now = new Date();
@@ -4410,44 +4556,47 @@
       const uploadFolder = document.getElementById('upload_folder').value.trim();
       const uploadPreset = document.getElementById('upload_profile').value.trim();
       
-      // Track upload attempt in Statsig (from gallery)
-      if (window.StatsigTracking && window.StatsigTracking.isInitialized()) {
-        window.StatsigTracking.logEvent('upload_cloudinary_attempt', {
-          source: 'gallery',
-          images_count: String(imageFiles.length),
-          upload_folder: uploadFolder,
-          timestamp: new Date().toISOString()
-        });
-      }
+      // Track upload attempt (from gallery)
+      const uploadStartTime = Date.now();
+      await trackEvent('upload_cloudinary_attempt', {
+        source: 'gallery',
+        images_count: imageFiles.length,
+        upload_folder: uploadFolder,
+        upload_profile: uploadPreset || ''
+      });
       
       try {
         const result = await uploadToCloudinaryDirect(imageFiles, uploadFolder, uploadPreset);
         
-        // Track upload success in Statsig (from gallery)
-        if (window.StatsigTracking && window.StatsigTracking.isInitialized()) {
-          window.StatsigTracking.logEvent('upload_cloudinary_completed', {
-            source: 'gallery',
-            successful: String(result.successful),
-            failed: String(result.failed),
-            total: String(result.total),
-            total_duration: String(result.total_duration),
-            timestamp: new Date().toISOString()
-          });
-        }
+        // Track upload success (from gallery)
+        const uploadDuration = Date.now() - uploadStartTime;
+        await trackEvent('upload_cloudinary_completed', {
+          source: 'gallery',
+          images_count: imageFiles.length,
+          successful: result.successful,
+          failed: result.failed,
+          total: result.total,
+          total_duration: result.total_duration,
+          upload_folder: uploadFolder,
+          upload_profile: uploadPreset || '',
+          upload_duration_ms: uploadDuration
+        });
         
         // Show completion message
         setGalleryStatus(`Upload complete: ${result.successful} successful, ${result.failed} failed`);
         alert(`Upload complete!\n\nSuccessful: ${result.successful}\nFailed: ${result.failed}\nTotal time: ${result.total_duration}s\n\nCheck console for details.`);
         
       } catch (error) {
-        // Track upload failure in Statsig (from gallery)
-        if (window.StatsigTracking && window.StatsigTracking.isInitialized()) {
-          window.StatsigTracking.logEvent('upload_cloudinary_failed', {
-            source: 'gallery',
-            error: error.message || 'Unknown error',
-            timestamp: new Date().toISOString()
-          });
-        }
+        // Track upload failure (from gallery)
+        const uploadDuration = Date.now() - uploadStartTime;
+        await trackEvent('upload_cloudinary_failed', {
+          source: 'gallery',
+          images_count: imageFiles.length,
+          upload_folder: uploadFolder,
+          upload_profile: uploadPreset || '',
+          error: error.message || 'Unknown error',
+          upload_duration_ms: uploadDuration
+        });
         
         logToConsole(`[CLOUDINARY] Upload error: ${error.message}`, 'error');
         logToConsole(`[CLOUDINARY] Error stack: ${error.stack || 'N/A'}`, 'error');
@@ -4564,39 +4713,46 @@
       const selectedCount = imageFiles.length;
       uploadBtn.textContent = `Uploading ${selectedCount} selected images...`;
       
-      // Track upload attempt in Statsig
-      if (window.StatsigTracking && window.StatsigTracking.isInitialized()) {
-        window.StatsigTracking.logEvent('upload_cloudinary_attempt', {
-          source: 'main_screen',
-          images_count: String(imageFiles.length),
-          upload_folder: uploadFolder,
-          timestamp: new Date().toISOString()
-        });
-      }
+      // Track upload attempt
+      const uploadStartTime = Date.now();
+      await trackEvent('upload_cloudinary_attempt', {
+        source: 'main_screen',
+        images_count: imageFiles.length,
+        upload_folder: uploadFolder,
+        upload_profile: uploadPreset || ''
+      });
       
       try {
         const result = await uploadToCloudinaryDirect(imageFiles, uploadFolder, uploadPreset);
         
-        // Track upload success in Statsig
-        if (window.StatsigTracking && window.StatsigTracking.isInitialized()) {
-          window.StatsigTracking.logEvent('upload_cloudinary_completed', {
-            source: 'main_screen',
-            successful: String(result.successful),
-            failed: String(result.failed),
-            total: String(result.total),
-            total_duration: String(result.total_duration),
-            timestamp: new Date().toISOString()
-          });
-        }
+        // Track upload success
+        const uploadDuration = Date.now() - uploadStartTime;
+        await trackEvent('upload_cloudinary_completed', {
+          source: 'main_screen',
+          images_count: imageFiles.length,
+          successful: result.successful,
+          failed: result.failed,
+          total: result.total,
+          total_duration: result.total_duration,
+          upload_folder: uploadFolder,
+          upload_profile: uploadPreset || '',
+          upload_duration_ms: uploadDuration
+        });
         
         // Show completion message
         alert(`Upload complete!\n\nSuccessful: ${result.successful}\nFailed: ${result.failed}\nTotal time: ${result.total_duration}s\n\nCheck console for details.`);
         
       } catch (error) {
-        // Track upload failure in Statsig
-        if (window.StatsigTracking && window.StatsigTracking.isInitialized()) {
-          window.StatsigTracking.logEvent('upload_cloudinary_failed', {
-            source: 'main_screen',
+        // Track upload failure
+        const uploadDuration = Date.now() - uploadStartTime;
+        await trackEvent('upload_cloudinary_failed', {
+          source: 'main_screen',
+          images_count: imageFiles.length,
+          upload_folder: uploadFolder,
+          upload_profile: uploadPreset || '',
+          error: error.message || 'Unknown error',
+          upload_duration_ms: uploadDuration
+        });
             error: error.message || 'Unknown error',
             timestamp: new Date().toISOString()
           });
@@ -4724,14 +4880,13 @@
       }
       logToConsole(`Update WM: Calling API with ${rowCount} item(s)${itemDescriptions}`, 'info');
 
-      // Track update WM attempt in Statsig
-      if (window.StatsigTracking && window.StatsigTracking.isInitialized()) {
-        window.StatsigTracking.logEvent('update_wm_attempt', {
-          org: org || 'unknown',
-          item_count: String(rowCount),
-          timestamp: new Date().toISOString()
-        });
-      }
+      // Track update WM attempt
+      const wmStartTime = Date.now();
+      await trackEvent('update_wm_attempt', {
+        org: org || 'unknown',
+        item_count: rowCount,
+        first_items: itemDescriptions || ''
+      });
 
       // Show visual indicator
       wmBtn.disabled = true;
@@ -4751,45 +4906,46 @@
           alert(`WM Update Complete!\n\nTotal: ${result.total}\nSuccess: ${result.success_count}\nFailed: ${result.failed_count}`);
           dlStatus.textContent = `WM Update complete: ${result.success_count}/${result.total} successful`;
           
-          // Track update WM success in Statsig
-          if (window.StatsigTracking && window.StatsigTracking.isInitialized()) {
-            window.StatsigTracking.logEvent('update_wm_completed', {
-              org: org || 'unknown',
-              total: String(result.total || 0),
-              success_count: String(result.success_count || 0),
-              failed_count: String(result.failed_count || 0),
-              timestamp: new Date().toISOString()
-            });
-          }
+          // Track update WM success
+          const wmDuration = Date.now() - wmStartTime;
+          await trackEvent('update_wm_completed', {
+            org: org || 'unknown',
+            item_count: rowCount,
+            total: result.total || 0,
+            success_count: result.success_count || 0,
+            failed_count: result.failed_count || 0,
+            first_items: itemDescriptions || '',
+            update_duration_ms: wmDuration
+          });
         } else {
           logToConsole(`Update WM failed: ${result.error}`, 'error');
           alert(`WM Update failed: ${result.error}`);
           dlStatus.textContent = `Error: ${result.error}`;
           
-          // Track update WM failure in Statsig
-          if (window.StatsigTracking && window.StatsigTracking.isInitialized()) {
-            window.StatsigTracking.logEvent('update_wm_failed', {
-              org: org || 'unknown',
-              item_count: String(rowCount),
-              error: result.error || 'Update WM failed',
-              timestamp: new Date().toISOString()
-            });
-          }
+          // Track update WM failure
+          const wmDuration = Date.now() - wmStartTime;
+          await trackEvent('update_wm_failed', {
+            org: org || 'unknown',
+            item_count: rowCount,
+            error: result.error || 'Update WM failed',
+            first_items: itemDescriptions || '',
+            update_duration_ms: wmDuration
+          });
         }
       } catch (error) {
         logToConsole(`Update WM error: ${error.message}`, 'error');
         alert(`WM Update failed: ${error.message}`);
         dlStatus.textContent = `Error: ${error.message}`;
         
-        // Track update WM failure in Statsig
-        if (window.StatsigTracking && window.StatsigTracking.isInitialized()) {
-          window.StatsigTracking.logEvent('update_wm_failed', {
-            org: org || 'unknown',
-            item_count: String(rowCount),
-            error: error.message || 'Update WM error',
-            timestamp: new Date().toISOString()
-          });
-        }
+        // Track update WM failure
+        const wmDuration = Date.now() - wmStartTime;
+        await trackEvent('update_wm_failed', {
+          org: org || 'unknown',
+          item_count: rowCount,
+          error: error.message || 'Update WM error',
+          first_items: itemDescriptions || '',
+          update_duration_ms: wmDuration
+        });
       } finally {
         wmBtn.disabled = false;
         wmBtn.innerHTML = 'Update WM';
@@ -4898,10 +5054,16 @@
     });
     }
 
-    window.addEventListener('DOMContentLoaded', () => {
+    window.addEventListener('DOMContentLoaded', async () => {
       initUI();
       registerEventHandlers();
-      apiCall('app_opened', {});
+      
+      // Track app opened
+      const urlParams = new URLSearchParams(window.location.search);
+      await trackEvent('app_opened', {
+        has_url_params: window.location.search.length > 0,
+        url_org: urlParams.get('Organization') || null
+      });
       
       // Check for ORG in URL parameter and auto-authenticate if present
       const urlParams = new URLSearchParams(window.location.search);
@@ -4942,8 +5104,6 @@
 
 
   </script>
-  <!-- Statsig Analytics -->
-  <script src="statsig.js"></script>
   <!-- Vercel Analytics -->
   <script>
     (function() {
