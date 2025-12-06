@@ -4752,10 +4752,6 @@
           error: error.message || 'Unknown error',
           upload_duration_ms: uploadDuration
         });
-            error: error.message || 'Unknown error',
-            timestamp: new Date().toISOString()
-          });
-        }
         
         logToConsole(`[CLOUDINARY] Upload error: ${error.message}`, 'error');
         logToConsole(`[CLOUDINARY] Error stack: ${error.stack || 'N/A'}`, 'error');
