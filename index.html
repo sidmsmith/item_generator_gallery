@@ -4206,7 +4206,6 @@
 
         // Track gallery finalize attempt
         const finalizeStartTime = Date.now();
-        const requiredItems = getGalleryRequiredItems();
         await trackEvent('gallery_finalize_attempt', {
           selections_count: selectionsPayload.length,
           skipped_items_count: gallerySkippedItems.size,
