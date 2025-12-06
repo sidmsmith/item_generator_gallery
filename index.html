@@ -5061,7 +5061,6 @@
       });
       
       // Check for ORG in URL parameter and auto-authenticate if present
-      const urlParams = new URLSearchParams(window.location.search);
       const urlOrg = urlParams.get('Organization');
       if (urlOrg && urlOrg.trim()) {
         // Auto-populate ORG and authenticate silently
