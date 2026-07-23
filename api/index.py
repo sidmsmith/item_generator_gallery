@@ -216,6 +216,48 @@ def get_extension_from_headers(content_type, fallback=".jpg"):
     content_type = content_type.split(";")[0].strip().lower()
     return MIME_EXTENSION_MAP.get(content_type, fallback)
 
+# Some retailer sites (e.g. fcpeuro.com) reject requests that don't look like a
+# real browser - bare `requests.get()` sends a "python-requests/x.x" User-Agent
+# and no Referer, which many hotlink-protection / bot-protection rules block
+# with a 403 even though the same URL loads fine in an actual browser.
+IMAGE_FETCH_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+)
+
+def get_image_fetch_headers(url):
+    from urllib.parse import urlparse
+    parsed = urlparse(url)
+    origin = f"{parsed.scheme}://{parsed.netloc}/" if parsed.scheme and parsed.netloc else None
+    headers = {
+        "User-Agent": IMAGE_FETCH_USER_AGENT,
+        "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+    }
+    if origin:
+        headers["Referer"] = origin
+    return headers
+
+def download_image_with_fallback(original_url, preview_url, timeout=20):
+    """Try to fetch an image from original_url, falling back to preview_url
+    (typically Google's cached thumbnail) if the source site blocks the request.
+
+    Returns (response, used_fallback, error) where response is None on total failure.
+    """
+    last_error = None
+    for idx, candidate_url in enumerate((original_url, preview_url)):
+        if not candidate_url:
+            continue
+        if idx == 1 and candidate_url == original_url:
+            continue  # no distinct fallback available
+        try:
+            resp = requests.get(candidate_url, timeout=timeout, headers=get_image_fetch_headers(candidate_url))
+            resp.raise_for_status()
+            return resp, (idx == 1), None
+        except requests.exceptions.RequestException as e:
+            last_error = str(e)
+            continue
+    return None, False, last_error
+
 def fetch_image_variants(product_name, item_id, sites, images_per_item, filters, start=1):
     """Fetch image metadata for a product without writing to disk
     
@@ -491,7 +533,7 @@ def download_images():
                 img_success = False
                 for _ in range(3):
                     try:
-                        img_r = requests.get(img_url, timeout=20)
+                        img_r = requests.get(img_url, timeout=20, headers=get_image_fetch_headers(img_url))
                         img_r.raise_for_status()
 
                         if len(img_r.content) < 1500:
@@ -747,10 +789,13 @@ def gallery_finalize():
     temp_dir = tempfile.mkdtemp(prefix="gallery_finalize_")
     csv_rows = []
     image_files = []
+    failed_items = []
+    fallback_items = []
 
     try:
         for item_id, selection in selection_map.items():
             original_url = selection.get('originalUrl')
+            preview_url = selection.get('previewUrl')
             file_name = selection.get('fileName') or item_id
             short_desc = selection.get('shortDescription') or item_id
             description = selection.get('description') or short_desc
@@ -758,11 +803,21 @@ def gallery_finalize():
             product_name = selection.get('productName') or item_id
             reference_id = selection.get('referenceId')
 
-            if not original_url:
-                raise ValueError(f"No image URL provided for {item_id}")
+            if not original_url and not preview_url:
+                failed_items.append({"itemId": item_id, "reason": "No image URL provided"})
+                continue
 
-            img_r = requests.get(original_url, timeout=20)
-            img_r.raise_for_status()
+            # Don't let one blocked/broken image (e.g. a site that 403s scripted
+            # requests) abort the whole batch - fall back to Google's cached
+            # thumbnail, and if that also fails, skip this item and keep going.
+            img_r, used_fallback, fetch_error = download_image_with_fallback(original_url, preview_url)
+            if img_r is None:
+                log_to_console(f"Gallery finalize: skipping {item_id} - {fetch_error}", "[WARN]")
+                failed_items.append({"itemId": item_id, "reason": fetch_error or "Download failed"})
+                continue
+            if used_fallback:
+                log_to_console(f"Gallery finalize: {item_id} used cached thumbnail (source image blocked)", "[WARN]")
+                fallback_items.append(item_id)
 
             extension = get_extension_from_headers(img_r.headers.get("content-type", ""), ".jpg")
             if not file_name.lower().endswith(extension):
@@ -792,6 +847,14 @@ def gallery_finalize():
             csv_row[3] = build_clean_url_path(prefix, folder, safe_name)
             csv_row[15] = source
             csv_rows.append(csv_row)
+
+        if not image_files:
+            reasons = "; ".join(f"{f['itemId']}: {f['reason']}" for f in failed_items) or "Unknown error"
+            return jsonify({
+                "success": False,
+                "error": f"All {len(failed_items)} selected image(s) failed to download. {reasons}",
+                "failed_items": failed_items
+            }), 502
 
         # A spreadsheet (and therefore a WM update) only makes sense when we have
         # real reference item IDs to attach to each row - without a Reference
@@ -842,13 +905,16 @@ def gallery_finalize():
         with open(zip_path, "rb") as zip_file:
             zip_base64 = base64.b64encode(zip_file.read()).decode("utf-8")
 
-        log_to_console(f"Gallery finalize complete for {len(selection_map)} items" +
+        log_to_console(f"Gallery finalize complete: {len(image_files)} downloaded, "
+                       f"{len(failed_items)} failed, {len(fallback_items)} used cached thumbnail" +
                        ("" if include_spreadsheet else " (no reference file - spreadsheet skipped)"), "[API]")
 
         response = {
             "success": True,
             "zip_content": zip_base64,
-            "zip_filename": zip_filename
+            "zip_filename": zip_filename,
+            "failed_items": failed_items,
+            "fallback_items": fallback_items
         }
         if include_spreadsheet:
             response["csv_content"] = csv_base64

@@ -4215,6 +4215,7 @@
               productName: item.productName,
               fileName: variant.fileName,
               originalUrl: variant.originalUrl,
+              previewUrl: variant.previewUrl,
               shortDescription: variant.shortDescription,
               description: variant.description,
               source: variant.source
@@ -4281,7 +4282,21 @@
         const hours = String(now.getHours()).padStart(2, '0');
         const minutes = String(now.getMinutes()).padStart(2, '0');
         const timestamp = `${year}${month}${day}-${hours}${minutes}`;
-        
+
+        // Some items may have failed to download (e.g. a site blocking scripted
+        // requests) or fallen back to a cached thumbnail - report both without
+        // blocking the rest of the batch, which already succeeded server-side.
+        const failedItems = result.failed_items || [];
+        const fallbackItems = result.fallback_items || [];
+        if (failedItems.length > 0) {
+          const failedLabels = failedItems.map(f => `${getItemDisplayLabel(f.itemId)} (${f.reason})`);
+          logToConsole(`${failedItems.length} item(s) could not be downloaded and were skipped: ${failedLabels.join('; ')}`, 'error');
+        }
+        if (fallbackItems.length > 0) {
+          const fallbackLabels = fallbackItems.map(getItemDisplayLabel);
+          logToConsole(`${fallbackItems.length} item(s) used a cached thumbnail because the source image was blocked: ${fallbackLabels.join(', ')}`, 'warning');
+        }
+
         if (result.csv_content) {
           downloadBase64File(result.csv_content, result.csv_filename || `imagedownload_${timestamp}.csv`, 'text/csv');
           const csvText = atob(result.csv_content);
@@ -4323,8 +4338,12 @@
           }
         }
 
-        document.getElementById('dlStatus').textContent = `Downloaded ${selectionsPayload.length} items via gallery.`;
-        setGalleryStatus('Downloads ready. Check your browser downloads folder.');
+        const downloadedCount = selectionsPayload.length - failedItems.length;
+        const statusSuffix = failedItems.length > 0 ? ` (${failedItems.length} failed - see console)` : '';
+        document.getElementById('dlStatus').textContent = `Downloaded ${downloadedCount} of ${selectionsPayload.length} items via gallery${statusSuffix}.`;
+        setGalleryStatus(failedItems.length > 0
+          ? `Downloads ready with ${failedItems.length} item(s) skipped. Check your browser downloads folder and console.`
+          : 'Downloads ready. Check your browser downloads folder.');
         galleryItems = [];
         gallerySelections = {};
         gallerySkippedItems.clear(); // Clear skipped items
