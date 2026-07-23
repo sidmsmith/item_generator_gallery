@@ -2094,6 +2094,7 @@
       referenceItemsFileInput.addEventListener('change', async (e) => {
         if (!e.target.files.length) {
           referenceItems = [];
+          updateWmControlsAvailability();
           setItemNumbersStatus('');
           if (referenceItemsDisplayEl) {
             referenceItemsDisplayEl.value = '';
@@ -2122,16 +2123,18 @@
           
           // Clear reference items data to force user to reload
           referenceItems = [];
+          updateWmControlsAvailability();
           localStorage.removeItem('item_gen_reference_items_filename');
           e.target.value = '';
           alert(`Invalid file format: ${validation.error}`);
           return;
         }
-        
+
         // File is valid, parse and store CSV data
         try {
           const parseResult = await parseReferenceItemsFile(file);
           referenceItems = parseResult.items;
+          updateWmControlsAvailability();
           const headerDetected = parseResult.headerDetected;
           
           // Update display textbox - show only filename (full path not available for security)
@@ -2176,6 +2179,7 @@
           
           // Clear reference items data to force user to reload
           referenceItems = [];
+          updateWmControlsAvailability();
           localStorage.removeItem('item_gen_reference_items_filename');
           e.target.value = '';
           alert(`Error loading file: ${error.message || 'Failed to parse file. Please ensure the file is a valid CSV or Excel file.'}`);
@@ -2512,6 +2516,29 @@
 
     function setItemNumbersStatus(text) {
       document.getElementById('itemNumbersStatus').textContent = text || '';
+    }
+
+    // "Update WM after download" only makes sense when a Reference Items File is
+    // loaded - without it there are no real WM item IDs to write. Keep both the
+    // main-panel and gallery-modal checkboxes (and their labels) in sync with that.
+    function updateWmControlsAvailability() {
+      const hasReferenceFile = referenceItems.length > 0;
+      const reason = hasReferenceFile ? '' : 'Requires a Reference Items File to be loaded';
+
+      ['updateWmAfterDownload', 'updateWmAfterDownloadGallery'].forEach(id => {
+        const checkbox = document.getElementById(id);
+        if (!checkbox) return;
+        checkbox.disabled = !hasReferenceFile;
+        if (!hasReferenceFile) checkbox.checked = false;
+        checkbox.title = reason;
+
+        const label = document.querySelector(`label[for="${id}"]`);
+        if (label) {
+          label.style.opacity = hasReferenceFile ? '' : '0.5';
+          label.style.cursor = hasReferenceFile ? 'pointer' : 'not-allowed';
+          label.title = reason;
+        }
+      });
     }
 
     function setExistingListStatus(text) {
@@ -3006,10 +3033,16 @@
         return;
       }
 
-      // Now check Reference Items
+      // Reference Items are optional, but without them we can't attach real WM
+      // item IDs to the results - warn and let the user opt into an image-only download.
       if (!referenceItems.length) {
-        alert('Please upload a Reference Items File before downloading images.');
-        return;
+        const proceedWithoutReference = confirm(
+          'No Reference Items File loaded.\n\n' +
+          'You can still download the images as a ZIP, but no item spreadsheet will be created ' +
+          'and WM cannot be updated for this batch.\n\n' +
+          'Continue with image download only?'
+        );
+        if (!proceedWithoutReference) return;
       }
 
       const baseNames = getSearchSource();
@@ -4273,9 +4306,11 @@
           }
         }
 
-        // Check if update WM after download is enabled
+        // Check if update WM after download is enabled. Guarded on referenceItems.length
+        // (not just csvData) so a stale csvData from an earlier, reference-backed download
+        // can never get pushed to WM for a batch that has no real item IDs.
         const updateWmAfterDownload = document.getElementById('updateWmAfterDownload');
-        if (updateWmAfterDownload && updateWmAfterDownload.checked && csvData) {
+        if (referenceItems.length > 0 && updateWmAfterDownload && updateWmAfterDownload.checked && csvData) {
           try {
             // Trigger WM update - force use of csvData (the just-downloaded CSV)
             logToConsole('Update WM after download enabled. Updating WM...', 'info');
@@ -5004,6 +5039,8 @@
           updateWmAfterDownload.checked = e.target.checked;
         });
       }
+      // Set initial enabled/disabled state (referenceItems is empty until a file is loaded)
+      updateWmControlsAvailability();
 
       const galleryModalEl = document.getElementById('galleryModal');
       if (galleryModalEl) {

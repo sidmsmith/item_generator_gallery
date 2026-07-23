@@ -793,7 +793,18 @@ def gallery_finalize():
             csv_row[15] = source
             csv_rows.append(csv_row)
 
-        if reference_items:
+        # A spreadsheet (and therefore a WM update) only makes sense when we have
+        # real reference item IDs to attach to each row - without a Reference
+        # Items File there's nothing meaningful to put in the ItemId column.
+        include_spreadsheet = bool(reference_items)
+
+        from datetime import datetime
+        timestamp = datetime.now().strftime('%y%m%d-%H%M')
+
+        csv_base64 = None
+        csv_filename = None
+
+        if include_spreadsheet:
             replicated_rows = []
             source_rows = [row for row in csv_rows if any(row)]
             if not source_rows:
@@ -807,23 +818,20 @@ def gallery_finalize():
                 idx += 1
             csv_rows = replicated_rows
 
-        headers = [
-            "ItemId", "ShortDescription", "Description", "ImageUrl",
-            "", "", "", "", "", "", "", "", "", "", "", "Source"
-        ]
+            headers = [
+                "ItemId", "ShortDescription", "Description", "ImageUrl",
+                "", "", "", "", "", "", "", "", "", "", "", "Source"
+            ]
 
-        csv_buffer = io.StringIO()
-        writer = csv.writer(csv_buffer)
-        writer.writerow(headers)
-        writer.writerows(csv_rows)
-        csv_content = csv_buffer.getvalue()
-        csv_buffer.close()
+            csv_buffer = io.StringIO()
+            writer = csv.writer(csv_buffer)
+            writer.writerow(headers)
+            writer.writerows(csv_rows)
+            csv_content = csv_buffer.getvalue()
+            csv_buffer.close()
 
-        csv_base64 = base64.b64encode(csv_content.encode('utf-8')).decode('utf-8')
-        # Generate timestamp in YYMMDD-HHMM format (matching Items_xxx.txt format)
-        from datetime import datetime
-        timestamp = datetime.now().strftime('%y%m%d-%H%M')
-        csv_filename = f"imagedownload_{timestamp}.csv"
+            csv_base64 = base64.b64encode(csv_content.encode('utf-8')).decode('utf-8')
+            csv_filename = f"imagedownload_{timestamp}.csv"
 
         zip_filename = f"downloaded_items_{timestamp}.zip"
         zip_path = os.path.join(temp_dir, zip_filename)
@@ -834,16 +842,20 @@ def gallery_finalize():
         with open(zip_path, "rb") as zip_file:
             zip_base64 = base64.b64encode(zip_file.read()).decode("utf-8")
 
-        log_to_console(f"Gallery finalize complete for {len(selection_map)} items", "[API]")
+        log_to_console(f"Gallery finalize complete for {len(selection_map)} items" +
+                       ("" if include_spreadsheet else " (no reference file - spreadsheet skipped)"), "[API]")
 
-        return jsonify({
+        response = {
             "success": True,
-            "csv_content": csv_base64,
-            "csv_filename": csv_filename,
             "zip_content": zip_base64,
-            "zip_filename": zip_filename,
-            "row_count": len(csv_rows)
-        })
+            "zip_filename": zip_filename
+        }
+        if include_spreadsheet:
+            response["csv_content"] = csv_base64
+            response["csv_filename"] = csv_filename
+            response["row_count"] = len(csv_rows)
+
+        return jsonify(response)
     except Exception as e:
         log_to_console(f"Gallery finalize failed: {str(e)}", "[ERROR]")
         return jsonify({"success": False, "error": str(e)}), 500
