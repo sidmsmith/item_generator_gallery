@@ -145,6 +145,24 @@ def clean_sites(sites_str):
     """Parse sites string into list of cleaned URLs"""
     return [clean_url(s.strip()) for s in sites_str.split(",") if s.strip()]
 
+def sort_variants_by_site_preference(variants, sites):
+    """Reorder image variants so results from higher-priority preferred sites
+    (as ordered in the Preferred Sites field) come first. Google's own
+    relevance ranking is preserved as a tiebreaker within each site, and
+    results from sites not in the list sort after all preferred ones.
+    """
+    if not sites:
+        return variants
+
+    def priority(variant):
+        source = (variant.get("source") or "").lower()
+        for idx, site in enumerate(sites):
+            if site and (source == site or source.endswith("." + site)):
+                return idx
+        return len(sites)
+
+    return sorted(variants, key=priority)
+
 def parse_image_filters(filter_str):
     """Parse image filter string into API parameters"""
     if not filter_str:
@@ -341,6 +359,7 @@ def fetch_image_variants(product_name, item_id, sites, images_per_item, filters,
             last_error = f"Google API error: {str(e)[:80]}"
             break
 
+    variants = sort_variants_by_site_preference(variants, sites)
     return variants, last_error
 
 # =============================================================================
