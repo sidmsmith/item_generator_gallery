@@ -3659,6 +3659,7 @@
       updateGalleryRow(uniqueKey);
       updateGallerySummary();
       updateGalleryToolbar();
+      updateGalleryWarnings();
     }
     
     // Optimized function to update only a specific row instead of re-rendering entire gallery
@@ -4287,7 +4288,20 @@
         // requests) or fallen back to a cached thumbnail - report both without
         // blocking the rest of the batch, which already succeeded server-side.
         const failedItems = result.failed_items || [];
+        const failedItemIds = new Set(failedItems.map(f => f.itemId));
         const fallbackItems = result.fallback_items || [];
+        const fallbackItemIds = new Set(fallbackItems);
+
+        // Log each item's outcome individually (gallery_finalize downloads
+        // everything in one batch call, so this is reported once the batch
+        // completes rather than truly live, but every item still gets a line).
+        selectionsPayload.forEach(selection => {
+          if (failedItemIds.has(selection.itemId)) return; // covered by the failure summary below
+          const label = getItemDisplayLabel(selection.itemId);
+          const suffix = fallbackItemIds.has(selection.itemId) ? ' (used cached thumbnail)' : '';
+          logToConsole(`Downloaded ${label} - ${selection.fileName}${suffix}`, 'success');
+        });
+
         if (failedItems.length > 0) {
           const failedLabels = failedItems.map(f => `${getItemDisplayLabel(f.itemId)} (${f.reason})`);
           logToConsole(`${failedItems.length} item(s) could not be downloaded and were skipped: ${failedLabels.join('; ')}`, 'error');
