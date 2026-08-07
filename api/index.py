@@ -61,7 +61,7 @@ API_SECRET_CLOUD = os.getenv("CLOUDINARY_API_SECRET", "")
 USAGE_INGEST_URL = os.getenv("MANHATTAN_USAGE_INGEST_URL", "").strip()
 USAGE_INGEST_SECRET = os.getenv("MANHATTAN_USAGE_INGEST_SECRET", "").strip()
 APP_NAME = "item-generator-gallery"
-APP_VERSION = "0.7.1"  # Hardcoded for now, could be dynamic
+APP_VERSION = "0.7.2"  # Hardcoded for now, could be dynamic
 
 # --- Default Values (matching Python script) ---
 DEFAULT_COMPANY = "Nike"
@@ -69,7 +69,7 @@ DEFAULT_WEBSITE = "nike.com"
 DEFAULT_COUNT = 30
 DEFAULT_SITES = "nike.com, amazon.com"
 DEFAULT_IMAGES_PER_ITEM = 3
-DEFAULT_PREFIX = "https://res.cloudinary.com/com-manh-cp/image/upload/v1752528139/"
+DEFAULT_PREFIX = "https://res.cloudinary.com/com-manh-cp/image/upload/"
 DEFAULT_FOLDER = "sidney"
 DEFAULT_PROFILE = ""
 DEFAULT_EXTRA_PROMPT = ""
@@ -1015,9 +1015,15 @@ def upload_cloudinary():
                 if upload_folder:
                     # Set folder parameter separately - don't include in public_id
                     upload_options['folder'] = upload_folder
-                
+
                 if upload_preset:
                     upload_options['upload_preset'] = upload_preset
+
+                # Re-uploading an existing public_id overwrites the asset;
+                # invalidate busts the CDN's cached copy of its current
+                # delivery URL so consumers stop seeing the stale image.
+                upload_options['overwrite'] = True
+                upload_options['invalidate'] = True
                 
                 # Read file content
                 img_file.seek(0)
@@ -1157,9 +1163,15 @@ def upload_cloudinary_stream():
                         upload_options['public_id'] = f"{upload_folder}/{name_without_ext}"
                     else:
                         upload_options['public_id'] = os.path.splitext(filename_only)[0]
-                    
+
                     if upload_preset:
                         upload_options['upload_preset'] = upload_preset
+
+                    # Re-uploading an existing public_id overwrites the asset;
+                    # invalidate busts the CDN's cached copy of its current
+                    # delivery URL so consumers stop seeing the stale image.
+                    upload_options['overwrite'] = True
+                    upload_options['invalidate'] = True
                     
                     # Read file content
                     img_file.seek(0)
