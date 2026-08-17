@@ -61,7 +61,7 @@ API_SECRET_CLOUD = os.getenv("CLOUDINARY_API_SECRET", "")
 USAGE_INGEST_URL = os.getenv("MANHATTAN_USAGE_INGEST_URL", "").strip()
 USAGE_INGEST_SECRET = os.getenv("MANHATTAN_USAGE_INGEST_SECRET", "").strip()
 APP_NAME = "item-generator-gallery"
-APP_VERSION = "0.7.2"  # Hardcoded for now, could be dynamic
+APP_VERSION = "0.7.3"  # Hardcoded for now, could be dynamic
 
 # --- Default Values (matching Python script) ---
 DEFAULT_COMPANY = "Nike"
